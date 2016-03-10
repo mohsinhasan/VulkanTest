@@ -1,0 +1,16 @@
+# depslib dependency file v1.0
+1457596523 source:/home/desktop/Dev/MyProjects/VulkanTest/main.cpp
+	"main.h"
+	<stdio.h>
+	<stdlib.h>
+	<assert.h>
+	<limits.h>
+	<memory>
+
+1457594370 /home/desktop/Dev/MyProjects/VulkanTest/main.h
+	<vulkan/vulkan.h>
+	<vulkan/vk_sdk_platform.h>
+	<GLFW/glfw3.h>
+	<vector>
+	<memory>
+
