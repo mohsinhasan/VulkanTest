@@ -27,8 +27,6 @@ bool initVKInstance()
 {
     bool vkDeviceInitSuccess = false;
 
-    //const char *extensionNames[] = { "VK_KHR_surface", "VK_KHR_xlib_surface" };
-
     unsigned int extCount;
     const char** extensions = glfwGetRequiredInstanceExtensions(&extCount);
 
@@ -41,7 +39,6 @@ bool initVKInstance()
     inst_info.enabledExtensionCount = extCount;
     inst_info.ppEnabledExtensionNames = extensions;
 
-    //uint32_t gpu_count;
     vkDeviceInitSuccess = (vkCreateInstance(&inst_info, nullptr, &g_app.instance) == VK_SUCCESS);
 
     return vkDeviceInitSuccess;
@@ -214,6 +211,7 @@ bool initVKRenderPass()
     subpassDescription.pPreserveAttachments = nullptr;
 
     VkRenderPassCreateInfo info;
+
     info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     info.pNext = nullptr;
     info.flags = 0;
