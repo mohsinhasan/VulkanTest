@@ -115,8 +115,6 @@ bool initVKDevice()
 
 bool initVKSwapchain()
 {
-    bool swapChainCreationSuccess = false;
-
     uint32_t formatCount;
     vkGetPhysicalDeviceSurfaceFormatsKHR(g_app.gpu, g_app.renderSurface, &formatCount, nullptr);
 
@@ -163,7 +161,7 @@ bool initVKSwapchain()
 
 bool initVKSwapImages()
 {
-
+    return false;
 }
 
 bool initVKRenderPass()
