@@ -282,9 +282,14 @@ int mainloop()
 
 int main(int argc, char **argv)
 {
+    int i = 0; 
     printf("Entering program");
 
-    if (init())
+    i = 1;
+
+    i = 2;
+
+    if (i > 0 && init())
     {
         printf("VK Surface creation success!!!\n");
         /*

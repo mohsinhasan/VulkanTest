@@ -7,7 +7,7 @@
             "request": "launch",
             "launchOptionType": "Local",
             "targetArchitecture": "x64",
-            "program": "${workspaceRoot}/bin/Debug/${fileBasename}.bin",
+            "program": "${workspaceRoot}/bin/Debug/VulkanTest.bin",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceRoot}",
