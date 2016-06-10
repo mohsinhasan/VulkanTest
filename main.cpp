@@ -282,6 +282,8 @@ int mainloop()
 
 int main(int argc, char **argv)
 {
+    printf("Entering program");
+
     if (init())
     {
         printf("VK Surface creation success!!!\n");
@@ -294,6 +296,9 @@ int main(int argc, char **argv)
 
         destroyWindow();
     }
+
+    printf("Exiting program");
+    getchar();
 
     return 0;
 }
