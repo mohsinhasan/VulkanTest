@@ -154,26 +154,50 @@ bool initVKSwapchain()
 
     vkCreateSwapchainKHR(g_app.device, &info, nullptr, &g_app.swapchain);
 
-    VkImage images[2];
-
-    return (vkGetSwapchainImagesKHR(g_app.device, g_app.swapchain, &g_app.swapchainImageCount, images) == VK_SUCCESS);
+    return (vkGetSwapchainImagesKHR(g_app.device, g_app.swapchain, &g_app.swapchainImageCount, &g_app.images[0]) == VK_SUCCESS);
 }
 
-bool initVKSwapImages()
+bool initVKSwapChainImages()
 {
-    return false;
+    VkImage *swapChainImages = &g_app.images[0];
+
+    for (unsigned int i = 0; i < BUFFER_COUNT; ++i) 
+    {
+        VkImageViewCreateInfo imageViewCreateInfo = 
+        {
+            VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,   // VkStructureType                sType
+            nullptr,                                    // const void                    *pNext
+            0,                                          // VkImageViewCreateFlags         flags
+            swapChainImages[i],                         // VkImage                        image
+            VK_IMAGE_VIEW_TYPE_2D,                      // VkImageViewType                viewType
+            i == 0 ? g_app.color_format : g_app.depth_format, // VkFormat                 format
+            {                                           // VkComponentMapping             components
+                VK_COMPONENT_SWIZZLE_IDENTITY,              // VkComponentSwizzle             r
+                VK_COMPONENT_SWIZZLE_IDENTITY,              // VkComponentSwizzle             g
+                VK_COMPONENT_SWIZZLE_IDENTITY,              // VkComponentSwizzle             b
+                VK_COMPONENT_SWIZZLE_IDENTITY               // VkComponentSwizzle             a
+            },
+            {                                           // VkImageSubresourceRange        subresourceRange
+                VK_IMAGE_ASPECT_COLOR_BIT,                  // VkImageAspectFlags             aspectMask
+                0,                                          // uint32_t                       baseMipLevel
+                1,                                          // uint32_t                       levelCount
+                0,                                          // uint32_t                       baseArrayLayer
+                1                                           // uint32_t                       layerCount
+            }
+        };
+
+        if (vkCreateImageView( g_app.device, &imageViewCreateInfo, nullptr, &g_app.imageViews[i] ) != VK_SUCCESS) 
+        {
+            printf( "Could not create image view for framebuffer!\n" );
+            return false;
+        }
+    }
+
+    return true;
 }
 
 bool initVKRenderPass()
 {
-    VkAttachmentReference colorAttachmentReference;
-    colorAttachmentReference.attachment = 0;
-    colorAttachmentReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-    VkAttachmentReference depthAttachmentReference;
-    depthAttachmentReference.attachment = 1;
-    depthAttachmentReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
     VkAttachmentDescription attachmentDescription[2];
     attachmentDescription[0].format = g_app.color_format;
     //attachmentDescription[0].flags = VK_ATTACHMENT_DESCRIPTION_MAY_ALIAS_BIT;
@@ -195,6 +219,14 @@ bool initVKRenderPass()
     attachmentDescription[1].initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
     attachmentDescription[1].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
+
+    VkAttachmentReference colorAttachmentReference;
+    colorAttachmentReference.attachment = 0;
+    colorAttachmentReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkAttachmentReference depthAttachmentReference;
+    depthAttachmentReference.attachment = 1;
+    depthAttachmentReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
     VkSubpassDescription subpassDescription;
     subpassDescription.flags = 0;
@@ -227,26 +259,24 @@ bool initVKFrameBuffer()
 {
     bool frameBufferCreateSuccess = true;
 
-    VkImageView attachments[2];
-    //attachments[1] = g_app.depth.view;[MH][TODO]
+    g_app.framebuffers.resize(g_app.swapchainImageCount);
+    assert(g_app.framebuffers.size() > 0);
 
     VkFramebufferCreateInfo fb_info;
-
     fb_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
     fb_info.pNext = nullptr;
     fb_info.renderPass = g_app.renderPass;
-    fb_info.attachmentCount = 2;
-    fb_info.pAttachments = attachments;
+    fb_info.attachmentCount = BUFFER_COUNT;
+    fb_info.pAttachments = &g_app.imageViews[i];
     fb_info.width = SCREEN_WIDTH;
     fb_info.height = SCREEN_HEIGHT;
     fb_info.layers = 1;
 
-    g_app.framebuffers.resize(g_app.swapchainImageCount);
-    assert(g_app.framebuffers.size() > 0);
-
     for (uint32_t i = 0; i < g_app.swapchainImageCount; i++)
     {
-        //attachments[0] = g_app.buffers[i].view; // [MH][TODO]
+        //[MH][TODO] : Fix the logic for double color buffers but single depth buffer
+        // basically each framebuffer will point to one of the color buffers but the same depth buffer
+        
         frameBufferCreateSuccess &= (vkCreateFramebuffer(g_app.device, &fb_info, nullptr, g_app.framebuffers[i]) == VK_SUCCESS);
     }
 
@@ -259,7 +289,7 @@ bool initVulkan()
             initVKSurface()     &&
             initVKDevice()      &&
             initVKSwapchain()   &&
-            initVKSwapImages()  &&
+            initVKSwapChainImages()  &&
             initVKRenderPass()  &&
             initVKFrameBuffer();
 }
@@ -303,7 +333,7 @@ int main(int argc, char **argv)
     }
 
     printf("Exiting program");
-    getchar();
+    //getchar();
 
     return 0;
 }

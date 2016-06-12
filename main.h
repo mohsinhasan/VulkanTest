@@ -11,8 +11,10 @@
 #include <memory>
 
 //Screen dimension constants
-const int SCREEN_WIDTH = 640;
-const int SCREEN_HEIGHT = 480;
+const uint SCREEN_WIDTH = 640;
+const uint SCREEN_HEIGHT = 480;
+
+const uint BUFFER_COUNT = 2;
 
 struct VulkanApp
 {
@@ -27,6 +29,10 @@ struct VulkanApp
 
     VkSwapchainKHR swapchain;
     uint32_t swapchainImageCount;//[MH][TODO]
+
+    VkImage images[BUFFER_COUNT]; // double buffered
+
+    VkImageView imageViews[BUFFER_COUNT]; // double buffered
 
     VkFormat color_format;
     VkFormat depth_format;
