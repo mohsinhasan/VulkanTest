@@ -28,20 +28,32 @@ struct VulkanApp
     VkSurfaceKHR renderSurface;
 
     VkSwapchainKHR swapchain;
-    uint32_t swapchainImageCount;//[MH][TODO]
+    uint32_t swapchainImageCount;
 
-    VkImage images[BUFFER_COUNT]; // double buffered
+    struct _swapChainBuffer 
+    {
+        VkImage image;
+        VkImageView view;
+    };
 
-    VkImageView imageViews[BUFFER_COUNT]; // double buffered
+    std::vector<_swapChainBuffer> swapBuffers; 
 
-    VkFormat color_format;
-    VkFormat depth_format;
+    struct
+    {
+        VkFormat format;
+        VkImage image;
+        VkDeviceMemory mem;
+        VkImageView view;
+    } depth;
+    
+    VkFormat colorFormat;
+    VkFormat depthFormat;
 
     VkRenderPass renderPass;
     std::vector<VkFramebuffer*> framebuffers;
 
-    uint32_t queue_count;
-    std::vector<VkQueueFamilyProperties> queue_props;
+    uint32_t queueCount;
+    std::vector<VkQueueFamilyProperties> queueProperties;
 };
 
 #endif //__MAIN_H__
