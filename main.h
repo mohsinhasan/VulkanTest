@@ -16,17 +16,21 @@ const uint SCREEN_HEIGHT = 480;
 
 const uint BUFFER_COUNT = 2;
 
+/* Amount of time, in nanoseconds, to wait for a command buffer to complete */
+const uint FENCE_TIMEOUT = 100000000;
+
 struct VulkanApp
 {
    //The window we'll be rendering to
     GLFWwindow* window = NULL;
 
     VkInstance instance;
-
-    VkPhysicalDevice gpu;
     VkDevice device;
-    VkSurfaceKHR renderSurface;
 
+    std::vector<VkPhysicalDevice> gpu;
+    uint32_t gpuCount;
+    
+    VkSurfaceKHR renderSurface;
     VkSwapchainKHR swapchain;
     uint32_t swapchainImageCount;
 
@@ -54,6 +58,12 @@ struct VulkanApp
 
     uint32_t queueCount;
     std::vector<VkQueueFamilyProperties> queueProperties;
+
+    uint32_t graphicsQueueFamilyIndex;
+
+    VkCommandPool cmdPool;
+    VkCommandBuffer cmd; // Buffer for initialization commands
+    VkQueue queue;
 };
 
 #endif //__MAIN_H__

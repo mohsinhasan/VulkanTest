@@ -13,6 +13,72 @@
 
 VulkanApp g_app;
 
+///
+void executeBeginCommandBuffer() 
+{
+    /* DEPENDS on init_command_buffer() */
+    VkResult res;
+
+    VkCommandBufferBeginInfo cmd_buf_info = {};
+    cmd_buf_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    cmd_buf_info.pNext = NULL;
+    cmd_buf_info.flags = 0;
+    cmd_buf_info.pInheritanceInfo = NULL;
+
+    res = vkBeginCommandBuffer(g_app.cmd, &cmd_buf_info);
+
+    assert(res == VK_SUCCESS);
+}
+
+void executeEndCommandBuffer() 
+{
+    VkResult res;
+
+    res = vkEndCommandBuffer(g_app.cmd);
+
+    assert(res == VK_SUCCESS);
+}
+
+void executeQueueCommandBuffer() 
+{
+    VkResult res;
+
+    /* Queue the command buffer for execution */
+    const VkCommandBuffer cmd_bufs[] = {g_app.cmd};
+    VkFenceCreateInfo fenceInfo;
+    VkFence drawFence;
+    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceInfo.pNext = NULL;
+    fenceInfo.flags = 0;
+    vkCreateFence(g_app.device, &fenceInfo, NULL, &drawFence);
+
+    VkPipelineStageFlags pipe_stage_flags = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+    VkSubmitInfo submit_info[1] = {};
+    submit_info[0].pNext = NULL;
+    submit_info[0].sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit_info[0].waitSemaphoreCount = 0;
+    submit_info[0].pWaitSemaphores = NULL;
+    submit_info[0].pWaitDstStageMask = &pipe_stage_flags;
+    submit_info[0].commandBufferCount = 1;
+    submit_info[0].pCommandBuffers = cmd_bufs;
+    submit_info[0].signalSemaphoreCount = 0;
+    submit_info[0].pSignalSemaphores = NULL;
+
+    res = vkQueueSubmit(g_app.queue, 1, submit_info, drawFence);
+    assert(res == VK_SUCCESS);
+
+    do 
+    {
+        res = vkWaitForFences(g_app.device, 1, &drawFence, VK_TRUE, FENCE_TIMEOUT);
+    } while (res == VK_TIMEOUT);
+
+    assert(res == VK_SUCCESS);
+
+    vkDestroyFence(g_app.device, drawFence, NULL);
+}
+///
+
+
 void fatalError(char *message)
 {
   fprintf(stderr, "main: %s\n", message);
@@ -69,51 +135,78 @@ bool initVKSurface()
 
 bool initVKDevice()
 {
-    uint32_t gpuCount = 1;
-    //[TODO] : Fix this based on the demo code. This is incomplete
-    //also add cmd
-    VkPhysicalDevice physical_device[gpuCount]; // [MH][TODO]: assuming at least one GPU for now
+    vkEnumeratePhysicalDevices(g_app.instance, &g_app.gpuCount, nullptr);
+    assert(g_app.gpuCount > 0);
 
-    vkEnumeratePhysicalDevices(g_app.instance, &gpuCount, physical_device);
-    g_app.gpu = physical_device[0];
-
+    g_app.gpu.resize(g_app.gpuCount);
+    vkEnumeratePhysicalDevices(g_app.instance, &g_app.gpuCount, g_app.gpu.data());
+    
     /* Call with nullptr data to get count */
-    vkGetPhysicalDeviceQueueFamilyProperties(g_app.gpu, &g_app.queueCount, nullptr);
+    vkGetPhysicalDeviceQueueFamilyProperties(g_app.gpu[0], &g_app.queueCount, nullptr);
     assert(g_app.queueCount >= 1);
 
     g_app.queueProperties.resize(g_app.queueCount);
-    vkGetPhysicalDeviceQueueFamilyProperties(g_app.gpu, &g_app.queueCount, &(g_app.queueProperties[0]));
+    vkGetPhysicalDeviceQueueFamilyProperties(g_app.gpu[0], &g_app.queueCount, g_app.queueProperties.data());
 
-    std::vector<VkDeviceQueueCreateInfo> queueCreateInfo;
-    queueCreateInfo.resize(g_app.queueCount);
+    // identify Graphics and present queue
+    // Iterate over each queue to learn whether it supports presenting:
+    std::vector<VkBool32> supportsPresent;
+    supportsPresent.resize(g_app.queueCount);
+
+    for (uint32_t i = 0; i < g_app.queueCount; i++) 
+    {
+        vkGetPhysicalDeviceSurfaceSupportKHR(g_app.gpu[0], i, g_app.renderSurface, &supportsPresent[i]);
+    }
+
+    // Search for a graphics queue and a present queue in the array of queue
+    // families, try to find one that supports both
+    uint32_t graphicsQueueNodeIndex = UINT32_MAX;
+    for (uint32_t i = 0; i < g_app.queueCount; i++) 
+    {
+        if ((g_app.queueProperties[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0) 
+        {
+            if (supportsPresent[i] == VK_TRUE) {
+                graphicsQueueNodeIndex = i;
+                break;
+            }
+        }
+    }
+
+    // Generate error if could not find a queue that supports both a graphics and present
+    if (graphicsQueueNodeIndex == UINT32_MAX) 
+    {
+        printf("Could not find a queue that supports both graphics and present\n");
+        assert(false);
+    }
+
+    g_app.graphicsQueueFamilyIndex = graphicsQueueNodeIndex;
 
     float queue_priorities[1] = {0.0};
-    for (uint32_t i = 0; i < g_app.queueCount; i++)
-    {
-        queueCreateInfo[i].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-        queueCreateInfo[i].pNext = nullptr;
-        queueCreateInfo[i].flags = 0;
-        queueCreateInfo[i].pQueuePriorities = queue_priorities;
-        queueCreateInfo[i].queueCount = 1;
-        queueCreateInfo[i].queueFamilyIndex = i;
-    }
+
+    VkDeviceQueueCreateInfo queueCreateInfo;
+    queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    queueCreateInfo.pNext = nullptr;
+    queueCreateInfo.flags = 0;
+    queueCreateInfo.pQueuePriorities = queue_priorities;
+    queueCreateInfo.queueCount = 1;
+    queueCreateInfo.queueFamilyIndex = g_app.graphicsQueueFamilyIndex;
 
     VkDeviceCreateInfo deviceCreateInfo;
     deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     deviceCreateInfo.pNext = nullptr;
     deviceCreateInfo.flags = 0;
-    deviceCreateInfo.queueCreateInfoCount = queueCreateInfo.size();
-    deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo[0];
+    deviceCreateInfo.queueCreateInfoCount = 1;
+    deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo;
     deviceCreateInfo.enabledLayerCount = 0;
     deviceCreateInfo.ppEnabledLayerNames = nullptr;
     deviceCreateInfo.enabledExtensionCount = 0;
     deviceCreateInfo.ppEnabledExtensionNames = nullptr;
     deviceCreateInfo.pEnabledFeatures = nullptr;
 
-    return (vkCreateDevice(g_app.gpu, &deviceCreateInfo, nullptr, &g_app.device) == VK_SUCCESS);
+    return (vkCreateDevice(g_app.gpu[0], &deviceCreateInfo, nullptr, &g_app.device) == VK_SUCCESS);
 }
 
-void set_image_layout(VkImage image,
+void setImageLayout(VkImage image,
                       VkImageAspectFlags aspectMask,
                       VkImageLayout old_image_layout,
                       VkImageLayout new_image_layout) 
@@ -187,12 +280,12 @@ bool initVKSwapchain()
 {
     // Identify surface format
     uint32_t formatCount;
-    vkGetPhysicalDeviceSurfaceFormatsKHR(g_app.gpu, g_app.renderSurface, &formatCount, nullptr);
+    vkGetPhysicalDeviceSurfaceFormatsKHR(g_app.gpu[0], g_app.renderSurface, &formatCount, nullptr);
 
     std::vector<VkSurfaceFormatKHR> surfaceFormats;
     surfaceFormats.resize(formatCount);
 
-    vkGetPhysicalDeviceSurfaceFormatsKHR(g_app.gpu, g_app.renderSurface, &formatCount, &(surfaceFormats[0]));
+    vkGetPhysicalDeviceSurfaceFormatsKHR(g_app.gpu[0], g_app.renderSurface, &formatCount, &(surfaceFormats[0]));
 
     if (formatCount == 1 && surfaceFormats[0].format == VK_FORMAT_UNDEFINED)
     {
@@ -205,17 +298,17 @@ bool initVKSwapchain()
 
     VkResult res = VK_SUCCESS;
 
-    res = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(g_app.gpu, g_app.renderSurface, &surfCapabilities);
+    res = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(g_app.gpu[0], g_app.renderSurface, &surfCapabilities);
     assert(res == VK_SUCCESS);
 
     uint32_t presentModeCount;
-    res = vkGetPhysicalDeviceSurfacePresentModesKHR(g_app.gpu, g_app.renderSurface, &presentModeCount, NULL);
+    res = vkGetPhysicalDeviceSurfacePresentModesKHR(g_app.gpu[0], g_app.renderSurface, &presentModeCount, NULL);
     assert(res == VK_SUCCESS);
 
     std::vector<VkPresentModeKHR> presentModes;
     presentModes.resize(presentModeCount);
     
-    res = vkGetPhysicalDeviceSurfacePresentModesKHR(g_app.gpu, g_app.renderSurface, &presentModeCount, &presentModes[0]);
+    res = vkGetPhysicalDeviceSurfacePresentModesKHR(g_app.gpu[0], g_app.renderSurface, &presentModeCount, &presentModes[0]);
     assert(res == VK_SUCCESS);
 
     // Determine the number of VkImage's to use in the swap chain (we desire to
@@ -283,7 +376,8 @@ bool initVKSwapchain()
     res = vkGetSwapchainImagesKHR(g_app.device, g_app.swapchain, &g_app.swapchainImageCount, &swapchainImages[0]);
     assert(res == VK_SUCCESS);
 
-    //[MH][TODO] : Do I need to init cmd buffers here?
+    executeBeginCommandBuffer();
+    vkGetDeviceQueue(g_app.device, g_app.graphicsQueueFamilyIndex, 0, &g_app.queue);
     
     for (uint32_t i = 0; i < g_app.swapchainImageCount; i++) 
     {
@@ -305,7 +399,7 @@ bool initVKSwapchain()
 
         g_app.swapBuffers[i].image = swapchainImages[i];
 
-        set_image_layout(g_app.swapBuffers[i].image, VK_IMAGE_ASPECT_COLOR_BIT,
+        setImageLayout(g_app.swapBuffers[i].image, VK_IMAGE_ASPECT_COLOR_BIT,
                          VK_IMAGE_LAYOUT_UNDEFINED,
                          VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
@@ -315,7 +409,10 @@ bool initVKSwapchain()
                                 &g_app.swapBuffers[i].view);
         assert(res == VK_SUCCESS);
     }
-    
+
+    executeEndCommandBuffer();
+    executeQueueCommandBuffer();
+
     return true;
 }
 
@@ -324,7 +421,7 @@ bool initVKDepthBuffer()
     VkImageCreateInfo image_info = {};
     const VkFormat depth_format = VK_FORMAT_D16_UNORM;
     VkFormatProperties props;
-    vkGetPhysicalDeviceFormatProperties(g_app.gpu, depth_format, &props);
+    vkGetPhysicalDeviceFormatProperties(g_app.gpu[0], depth_format, &props);
     
     if (props.linearTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) 
     {
@@ -393,7 +490,7 @@ bool initVKDepthBuffer()
 
     mem_alloc.allocationSize = mem_reqs.size;
     /* Use the memory properties to determine the type of memory required */
-    bool pass = memory_type_from_properties(mem_reqs.memoryTypeBits, 0 /* No Requirements */, &mem_alloc.memoryTypeIndex);
+    bool pass = memory_type_from_properties(mem_reqs.memoryTypeBits, 0 /* No Requirements */, &mem_alloc.memoryTypeIndex); //[MH][TODO]
     assert(pass);
 
     /* Allocate memory */
@@ -405,7 +502,7 @@ bool initVKDepthBuffer()
     assert(res == VK_SUCCESS);
 
     /* Set the image layout to depth stencil optimal */
-    set_image_layout(g_app.depth.image, VK_IMAGE_ASPECT_DEPTH_BIT,
+    setImageLayout(g_app.depth.image, VK_IMAGE_ASPECT_DEPTH_BIT,
                      VK_IMAGE_LAYOUT_UNDEFINED,
                      VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
@@ -507,13 +604,52 @@ bool initVKFrameBuffer()
     return frameBufferCreateSuccess;
 }
 
+bool initCommandPool() 
+{
+    /* DEPENDS on init_swapchain_extension() */
+    VkResult  res;
+
+    VkCommandPoolCreateInfo cmd_pool_info = {};
+    cmd_pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    cmd_pool_info.pNext = NULL;
+    cmd_pool_info.queueFamilyIndex = g_app.graphicsQueueFamilyIndex;
+    cmd_pool_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+
+    res = vkCreateCommandPool(g_app.device, &cmd_pool_info, NULL, &g_app.cmdPool);
+
+    assert(res == VK_SUCCESS);
+
+    return (res == VK_SUCCESS);
+}
+
+bool initCommandBuffer() 
+{
+    /* DEPENDS on init_swapchain_extension() and init_command_pool() */
+    VkResult  res;
+
+    VkCommandBufferAllocateInfo cmd = {};
+    cmd.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    cmd.pNext = NULL;
+    cmd.commandPool = g_app.cmdPool;
+    cmd.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    cmd.commandBufferCount = 1;
+
+    res = vkAllocateCommandBuffers(g_app.device, &cmd, &g_app.cmd);
+
+    assert(res == VK_SUCCESS);
+
+    return (res == VK_SUCCESS);
+}
+
 bool initVulkan()
 {
     return  initVKInstance()    &&
             initVKSurface()     &&
             initVKDevice()      &&
+            initCommandPool()   &&
+            initCommandBuffer() &&
             initVKSwapchain()   &&
-            initVKDepthBuffer()   &&
+            initVKDepthBuffer() &&
             initVKRenderPass()  &&
             initVKFrameBuffer();
 }
