@@ -812,7 +812,7 @@ void render()
 
     assert (result == VK_SUCCESS);
 }
-
+ 
 int main(int argc, char **argv)
 {
     printf("Entering Vulkan Test program");
