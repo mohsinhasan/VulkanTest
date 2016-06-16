@@ -66,6 +66,9 @@ struct VulkanApp
     VkCommandPool cmdPool;
     VkCommandBuffer cmd; // Buffer for initialization commands
     VkQueue queue;
+
+    VkSemaphore                   ImageAvailableSemaphore;
+    VkSemaphore                   RenderingFinishedSemaphore;
 };
 
 #endif //__MAIN_H__

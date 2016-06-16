@@ -514,7 +514,7 @@ bool initVKDepthBuffer()
 
     mem_alloc.allocationSize = memReqs.size;
     /* Use the memory properties to determine the type of memory required */
-    bool pass = memoryTypeFromProperties(memReqs.memoryTypeBits, 0 /* No Requirements */, &mem_alloc.memoryTypeIndex); //[MH][TODO]
+    bool pass = memoryTypeFromProperties(memReqs.memoryTypeBits, 0 /* No Requirements */, &mem_alloc.memoryTypeIndex); 
     assert(pass);
 
     /* Allocate memory */
@@ -665,6 +665,24 @@ bool initVKCommandBuffer()
     return (res == VK_SUCCESS);
 }
 
+bool initSemaphores() 
+{
+    VkSemaphoreCreateInfo semaphore_create_info = 
+    {
+      VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,      // VkStructureType          sType
+      nullptr,                                      // const void*              pNext
+      0                                             // VkSemaphoreCreateFlags   flags
+    };
+
+    if( (vkCreateSemaphore( g_app.device, &semaphore_create_info, nullptr, &g_app.ImageAvailableSemaphore ) != VK_SUCCESS) ||
+        (vkCreateSemaphore( g_app.device, &semaphore_create_info, nullptr, &g_app.RenderingFinishedSemaphore ) != VK_SUCCESS) ) 
+    {
+        return false;
+    }
+
+    return true;
+}
+
 bool initVulkan()
 {
     return  initVKInstance()    &&
@@ -675,7 +693,8 @@ bool initVulkan()
             initVKSwapchain()   &&
             initVKDepthBuffer() &&
             initVKRenderPass()  &&
-            initVKFrameBuffer();
+            initVKFrameBuffer() &&
+            initSemaphores();
 }
 
 bool init()
@@ -694,15 +713,104 @@ int mainloop()
     return 1;
 }
 
-void render()
+void clear()
 {
     // clear back buffer
+    VkClearColorValue clear_color = 
+    {
+      { 1.0f, 0.8f, 0.4f, 0.0f }
+    };
 
+    VkImageSubresourceRange image_subresource_range = 
+    {
+      VK_IMAGE_ASPECT_COLOR_BIT,                    // VkImageAspectFlags                     aspectMask
+      0,                                            // uint32_t                               baseMipLevel
+      1,                                            // uint32_t                               levelCount
+      0,                                            // uint32_t                               baseArrayLayer
+      1                                             // uint32_t                               layerCount
+    };
+    
+    for (uint32_t i = 0; i < g_app.swapchainImageCount; ++i) 
+    {
+        VkImageMemoryBarrier barrier_from_present_to_clear = 
+        {
+            VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,     // VkStructureType                        sType
+            nullptr,                                    // const void                            *pNext
+            VK_ACCESS_MEMORY_READ_BIT,                  // VkAccessFlags                          srcAccessMask
+            VK_ACCESS_TRANSFER_WRITE_BIT,               // VkAccessFlags                          dstAccessMask
+            VK_IMAGE_LAYOUT_UNDEFINED,                  // VkImageLayout                          oldLayout
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,       // VkImageLayout                          newLayout
+            VK_QUEUE_FAMILY_IGNORED,                    // uint32_t                               srcQueueFamilyIndex
+            VK_QUEUE_FAMILY_IGNORED,                    // uint32_t                               dstQueueFamilyIndex
+            g_app.swapBuffers[i].image,                 // VkImage                                image
+            image_subresource_range                     // VkImageSubresourceRange                subresourceRange
+        };
 
-    // draw triangle
+        VkImageMemoryBarrier barrier_from_clear_to_present = 
+        {
+            VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,     // VkStructureType                        sType
+            nullptr,                                    // const void                            *pNext
+            VK_ACCESS_TRANSFER_WRITE_BIT,               // VkAccessFlags                          srcAccessMask
+            VK_ACCESS_MEMORY_READ_BIT,                  // VkAccessFlags                          dstAccessMask
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,       // VkImageLayout                          oldLayout
+            VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,            // VkImageLayout                          newLayout
+            VK_QUEUE_FAMILY_IGNORED,                    // uint32_t                               srcQueueFamilyIndex
+            VK_QUEUE_FAMILY_IGNORED,                    // uint32_t                               dstQueueFamilyIndex
+            g_app.swapBuffers[i].image,                 // VkImage                                image
+            image_subresource_range                     // VkImageSubresourceRange                subresourceRange
+        };
 
+        executeBeginCommandBuffer();
+        vkCmdPipelineBarrier( g_app.cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier_from_present_to_clear );
+        vkCmdClearColorImage( g_app.cmd, g_app.swapBuffers[i].image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clear_color, 1, &image_subresource_range );
+        vkCmdPipelineBarrier( g_app.cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier_from_clear_to_present );
+        executeEndCommandBuffer();
+        executeQueueCommandBuffer(); //[MH][TODO] : Why do we need this for correct image display
+    }
+}
+
+void render()
+{
+    uint32_t image_index;
+    VkResult result = vkAcquireNextImageKHR( g_app.device, g_app.swapchain, UINT64_MAX, g_app.ImageAvailableSemaphore, VK_NULL_HANDLE, &image_index );
+    assert (result == VK_SUCCESS);
+
+    VkResult res;
+
+    /* Queue the command buffer for execution */
+    const VkCommandBuffer cmd_bufs[] = {g_app.cmd};
+
+    VkPipelineStageFlags pipe_stage_flags = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    VkSubmitInfo submit_info[1] = {};
+    submit_info[0].pNext = NULL;
+    submit_info[0].sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit_info[0].waitSemaphoreCount = 1;
+    submit_info[0].pWaitSemaphores = &g_app.ImageAvailableSemaphore;
+    submit_info[0].pWaitDstStageMask = &pipe_stage_flags;
+    submit_info[0].commandBufferCount = 1;
+    submit_info[0].pCommandBuffers = cmd_bufs;
+    submit_info[0].signalSemaphoreCount = 1;
+    submit_info[0].pSignalSemaphores = &g_app.RenderingFinishedSemaphore;
+
+    res = vkQueueSubmit(g_app.queue, 1, submit_info, VK_NULL_HANDLE/*drawFence*/);
+    assert(res == VK_SUCCESS);
 
     // swap buffers
+    VkPresentInfoKHR present_info = 
+    {
+        VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,           // VkStructureType              sType
+        nullptr,                                      // const void                  *pNext
+        1,                                            // uint32_t                     waitSemaphoreCount
+        &g_app.RenderingFinishedSemaphore,           // const VkSemaphore           *pWaitSemaphores
+        1,                                            // uint32_t                     swapchainCount
+        &g_app.swapchain,                            // const VkSwapchainKHR        *pSwapchains
+        &image_index,                                 // const uint32_t              *pImageIndices
+        nullptr                                       // VkResult                    *pResults
+    };
+
+    result = vkQueuePresentKHR( g_app.queue, &present_info );
+
+    assert (result == VK_SUCCESS);
 }
 
 int main(int argc, char **argv)
@@ -713,15 +821,13 @@ int main(int argc, char **argv)
     {
         printf("Vulkan init success!!!\n");
 
-        render();
+        clear(); // record command buffer
 
-        /*
         while(mainloop())
         {
-
+            render();
         };
-        */
-
+        
         destroyWindow();
     }
 
