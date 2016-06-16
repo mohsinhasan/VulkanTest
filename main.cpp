@@ -140,6 +140,10 @@ bool initVKDevice()
 
     g_app.gpu.resize(g_app.gpuCount);
     vkEnumeratePhysicalDevices(g_app.instance, &g_app.gpuCount, g_app.gpu.data());
+
+    // init gpu and memory properties
+    vkGetPhysicalDeviceMemoryProperties(g_app.gpu[0], &g_app.memoryProperties);
+    vkGetPhysicalDeviceProperties(g_app.gpu[0], &g_app.gpuProps);
     
     /* Call with nullptr data to get count */
     vkGetPhysicalDeviceQueueFamilyProperties(g_app.gpu[0], &g_app.queueCount, nullptr);
@@ -165,7 +169,8 @@ bool initVKDevice()
     {
         if ((g_app.queueProperties[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0) 
         {
-            if (supportsPresent[i] == VK_TRUE) {
+            if (supportsPresent[i] == VK_TRUE) 
+            {
                 graphicsQueueNodeIndex = i;
                 break;
             }
@@ -207,9 +212,9 @@ bool initVKDevice()
 }
 
 void setImageLayout(VkImage image,
-                      VkImageAspectFlags aspectMask,
-                      VkImageLayout old_image_layout,
-                      VkImageLayout new_image_layout) 
+                    VkImageAspectFlags aspectMask,
+                    VkImageLayout old_image_layout,
+                    VkImageLayout new_image_layout) 
 {
     /* DEPENDS on info.cmd and info.queue initialized */
 
@@ -232,48 +237,51 @@ void setImageLayout(VkImage image,
     image_memory_barrier.subresourceRange.baseArrayLayer = 0;
     image_memory_barrier.subresourceRange.layerCount = 1;
 
-    if (old_image_layout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) {
-        image_memory_barrier.srcAccessMask =
-            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    if (old_image_layout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) 
+    {
+        image_memory_barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
     }
 
-    if (new_image_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+    if (new_image_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) 
+    {
         image_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
     }
 
-    if (new_image_layout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL) {
+    if (new_image_layout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL) 
+    {
         image_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
     }
 
-    if (old_image_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+    if (old_image_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) 
+    {
         image_memory_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
     }
 
-    if (old_image_layout == VK_IMAGE_LAYOUT_PREINITIALIZED) {
+    if (old_image_layout == VK_IMAGE_LAYOUT_PREINITIALIZED) 
+    {
         image_memory_barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
     }
 
-    if (new_image_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
-        image_memory_barrier.srcAccessMask =
-            VK_ACCESS_HOST_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+    if (new_image_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) 
+    {
+        image_memory_barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
         image_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
     }
 
-    if (new_image_layout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) {
-        image_memory_barrier.dstAccessMask =
-            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    if (new_image_layout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) 
+    {
+        image_memory_barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
     }
 
-    if (new_image_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
-        image_memory_barrier.dstAccessMask =
-            VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    if (new_image_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) 
+    {
+        image_memory_barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
     }
 
     VkPipelineStageFlags src_stages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
     VkPipelineStageFlags dest_stages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 
-    vkCmdPipelineBarrier(g_app.cmd, src_stages, dest_stages, 0, 0, NULL, 0, NULL,
-                         1, &image_memory_barrier);
+    vkCmdPipelineBarrier(g_app.cmd, src_stages, dest_stages, 0, 0, NULL, 0, NULL, 1, &image_memory_barrier);
 }
 
 bool initVKSwapchain()
@@ -399,14 +407,11 @@ bool initVKSwapchain()
 
         g_app.swapBuffers[i].image = swapchainImages[i];
 
-        setImageLayout(g_app.swapBuffers[i].image, VK_IMAGE_ASPECT_COLOR_BIT,
-                         VK_IMAGE_LAYOUT_UNDEFINED,
-                         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        setImageLayout(g_app.swapBuffers[i].image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
         colorImageView.image = g_app.swapBuffers[i].image;
 
-        res = vkCreateImageView(g_app.device, &colorImageView, NULL,
-                                &g_app.swapBuffers[i].view);
+        res = vkCreateImageView(g_app.device, &colorImageView, NULL, &g_app.swapBuffers[i].view);
         assert(res == VK_SUCCESS);
     }
 
@@ -414,6 +419,26 @@ bool initVKSwapchain()
     executeQueueCommandBuffer();
 
     return true;
+}
+
+bool memoryTypeFromProperties(uint32_t typeBits, VkFlags requirements_mask, uint32_t *typeIndex) 
+{
+    // Search memtypes to find first index with those properties
+    for (uint32_t i = 0; i < g_app.memoryProperties.memoryTypeCount; i++) 
+    {
+        if ((typeBits & 1) == 1) 
+        {
+            // Type is available, does it match user properties?
+            if ((g_app.memoryProperties.memoryTypes[i].propertyFlags & requirements_mask) == requirements_mask) 
+            {
+                *typeIndex = i;
+                return true;
+            }
+        }
+        typeBits >>= 1;
+    }
+    // No memory types matched, return failure
+    return false;
 }
 
 bool initVKDepthBuffer()
@@ -478,19 +503,18 @@ bool initVKDepthBuffer()
     view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
     view_info.flags = 0;
 
-    VkMemoryRequirements mem_reqs;
-
     g_app.depth.format = depth_format;
 
     /* Create image */
     VkResult res = vkCreateImage(g_app.device, &image_info, NULL, &g_app.depth.image);
     assert(res == VK_SUCCESS);
 
-    vkGetImageMemoryRequirements(g_app.device, g_app.depth.image, &mem_reqs);
+    VkMemoryRequirements memReqs;
+    vkGetImageMemoryRequirements(g_app.device, g_app.depth.image, &memReqs);
 
-    mem_alloc.allocationSize = mem_reqs.size;
+    mem_alloc.allocationSize = memReqs.size;
     /* Use the memory properties to determine the type of memory required */
-    bool pass = memory_type_from_properties(mem_reqs.memoryTypeBits, 0 /* No Requirements */, &mem_alloc.memoryTypeIndex); //[MH][TODO]
+    bool pass = memoryTypeFromProperties(memReqs.memoryTypeBits, 0 /* No Requirements */, &mem_alloc.memoryTypeIndex); //[MH][TODO]
     assert(pass);
 
     /* Allocate memory */
@@ -598,13 +622,13 @@ bool initVKFrameBuffer()
     {
         attachments[0] = g_app.swapBuffers[i].view;
        
-        frameBufferCreateSuccess &= (vkCreateFramebuffer(g_app.device, &fb_info, nullptr, g_app.framebuffers[i]) == VK_SUCCESS);
+        frameBufferCreateSuccess &= (vkCreateFramebuffer(g_app.device, &fb_info, nullptr, &g_app.framebuffers[i]) == VK_SUCCESS);
     }
 
     return frameBufferCreateSuccess;
 }
 
-bool initCommandPool() 
+bool initVKCommandPool() 
 {
     /* DEPENDS on init_swapchain_extension() */
     VkResult  res;
@@ -622,7 +646,7 @@ bool initCommandPool()
     return (res == VK_SUCCESS);
 }
 
-bool initCommandBuffer() 
+bool initVKCommandBuffer() 
 {
     /* DEPENDS on init_swapchain_extension() and init_command_pool() */
     VkResult  res;
@@ -646,8 +670,8 @@ bool initVulkan()
     return  initVKInstance()    &&
             initVKSurface()     &&
             initVKDevice()      &&
-            initCommandPool()   &&
-            initCommandBuffer() &&
+            initVKCommandPool()   &&
+            initVKCommandBuffer() &&
             initVKSwapchain()   &&
             initVKDepthBuffer() &&
             initVKRenderPass()  &&
@@ -670,18 +694,27 @@ int mainloop()
     return 1;
 }
 
+void render()
+{
+    // clear back buffer
+
+
+    // draw triangle
+
+
+    // swap buffers
+}
+
 int main(int argc, char **argv)
 {
-    int i = 0; 
-    printf("Entering program");
+    printf("Entering Vulkan Test program");
 
-    i = 1;
-
-    i = 2;
-
-    if (i > 0 && init())
+    if (init())
     {
-        printf("VK Surface creation success!!!\n");
+        printf("Vulkan init success!!!\n");
+
+        render();
+
         /*
         while(mainloop())
         {
@@ -693,7 +726,7 @@ int main(int argc, char **argv)
     }
 
     printf("Exiting program");
-    //getchar();
+    getchar();
 
     return 0;
 }

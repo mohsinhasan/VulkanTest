@@ -54,12 +54,14 @@ struct VulkanApp
     VkFormat depthFormat;
 
     VkRenderPass renderPass;
-    std::vector<VkFramebuffer*> framebuffers;
+    std::vector<VkFramebuffer> framebuffers;
 
     uint32_t queueCount;
     std::vector<VkQueueFamilyProperties> queueProperties;
-
     uint32_t graphicsQueueFamilyIndex;
+
+    VkPhysicalDeviceProperties gpuProps;
+    VkPhysicalDeviceMemoryProperties memoryProperties;
 
     VkCommandPool cmdPool;
     VkCommandBuffer cmd; // Buffer for initialization commands
