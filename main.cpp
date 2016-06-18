@@ -792,7 +792,7 @@ void render()
     submit_info[0].signalSemaphoreCount = 1;
     submit_info[0].pSignalSemaphores = &g_app.RenderingFinishedSemaphore;
 
-    res = vkQueueSubmit(g_app.queue, 1, submit_info, VK_NULL_HANDLE/*drawFence*/);
+    res = vkQueueSubmit(g_app.queue, 1, submit_info, VK_NULL_HANDLE);
     assert(res == VK_SUCCESS);
 
     // swap buffers
