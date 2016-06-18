@@ -18,7 +18,7 @@ void executeBeginCommandBuffer()
 {
     /* DEPENDS on init_command_buffer() */
     VkResult res;
-
+ 
     VkCommandBufferBeginInfo cmd_buf_info = {};
     cmd_buf_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     cmd_buf_info.pNext = NULL;
@@ -28,7 +28,7 @@ void executeBeginCommandBuffer()
     res = vkBeginCommandBuffer(g_app.cmd, &cmd_buf_info);
 
     assert(res == VK_SUCCESS);
-}
+}   
 
 void executeEndCommandBuffer() 
 {
@@ -708,10 +708,6 @@ void destroyWindow()
     vkDestroySwapchainKHR(g_app.device, g_app.swapchain, nullptr);
 }
 
-int mainloop()
-{
-    return 1;
-}
 
 void clear()
 {
@@ -765,7 +761,7 @@ void clear()
         vkCmdClearColorImage( g_app.cmd, g_app.swapBuffers[i].image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clear_color, 1, &image_subresource_range );
         vkCmdPipelineBarrier( g_app.cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier_from_clear_to_present );
         executeEndCommandBuffer();
-        executeQueueCommandBuffer(); //[MH][TODO] : Why do we need this for correct image display
+        executeQueueCommandBuffer(); //[MH][TODO] : Removing this causes flickering. Why do we need this for correct image display?
     }
 }
 
@@ -813,6 +809,13 @@ void render()
     assert (result == VK_SUCCESS);
 }
  
+int mainloop()
+{
+    render();
+
+    return 1;
+}
+ 
 int main(int argc, char **argv)
 {
     printf("Entering Vulkan Test program");
@@ -825,7 +828,6 @@ int main(int argc, char **argv)
 
         while(mainloop())
         {
-            render();
         };
         
         destroyWindow();
