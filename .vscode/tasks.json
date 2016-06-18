@@ -34,7 +34,7 @@
 {
     "version": "0.1.0",
     "command": "g++",
-    "args": ["-Wall", "${fileBasename}", "-o", "${workspaceRoot}/bin/Debug/VulkanTest.bin", "-ggdb", "-std=c++0x", "-l:libglfw.so.3.2", "-lvulkan", "-ldl", "-lpthread", "-lXrandr", "-lXi", "-lXcursor", "-lX11", "-lXxf86vm", "-lXinerama", "-DVK_USE_PLATFORM_XLIB_KHR"],
+    "args": ["-Wall", "src/${fileBasename}", "-o", "${workspaceRoot}/bin/Debug/VulkanTest.bin", "-ggdb", "-std=c++0x", "-l:libglfw.so.3.2", "-lvulkan", "-ldl", "-lpthread", "-lXrandr", "-lXi", "-lXcursor", "-lX11", "-lXxf86vm", "-lXinerama", "-DVK_USE_PLATFORM_XLIB_KHR"],
     "problemMatcher": {
         "owner": "cpp",
         "fileLocation": ["relative", "${cwd}"],
