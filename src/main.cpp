@@ -27,7 +27,7 @@ void executeBeginCommandBuffer(uint16_t iBuffer)
     VkCommandBufferBeginInfo cmd_buf_info = {};
     cmd_buf_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     cmd_buf_info.pNext = NULL;
-    cmd_buf_info.flags = 0;
+    cmd_buf_info.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
     cmd_buf_info.pInheritanceInfo = NULL;
 
     result = vkBeginCommandBuffer(g_app.cmd[iBuffer], &cmd_buf_info);
@@ -214,7 +214,15 @@ bool initVKDevice()
     deviceCreateInfo.ppEnabledExtensionNames = nullptr;
     deviceCreateInfo.pEnabledFeatures = nullptr;
 
-    return (vkCreateDevice(g_app.gpu[0], &deviceCreateInfo, nullptr, &g_app.device) == VK_SUCCESS);
+    VkResult result = VK_SUCCESS;
+
+    result = vkCreateDevice(g_app.gpu[0], &deviceCreateInfo, nullptr, &g_app.device);
+
+    assert (result == VK_SUCCESS);
+
+    vkGetDeviceQueue(g_app.device, g_app.graphicsQueueFamilyIndex, 0, &g_app.queue);
+
+    return true;
 }
 
 void setImageLayout(uint16_t iBuffer, VkImage image,
@@ -745,15 +753,13 @@ void clearScreen()
 
         executeBeginCommandBuffer(i);
 
-        vkGetDeviceQueue(g_app.device, g_app.graphicsQueueFamilyIndex, 0, &g_app.queue);
-
-        setImageLayout(i, g_app.swapBuffers[i].image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        //setImageLayout(i, g_app.swapBuffers[i].image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
         
         vkCmdPipelineBarrier( g_app.cmd[i], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier_from_present_to_clear );
         vkCmdClearColorImage( g_app.cmd[i], g_app.swapBuffers[i].image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clear_color, 1, &image_subresource_range );
         vkCmdPipelineBarrier( g_app.cmd[i], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier_from_clear_to_present );
         executeEndCommandBuffer(i);
-        executeQueueCommandBuffer(i); //[MH][TODO] : Removing this causes flickering. Why do we need this for correct image display?
+        //executeQueueCommandBuffer(i); //[MH][TODO] : Removing this causes flickering. Why do we need this for correct image display?
     }
 }
 
@@ -765,7 +771,6 @@ void render()
     assert (result == VK_SUCCESS);
 
     /* Queue the command buffer for execution */
-
     VkPipelineStageFlags pipe_stage_flags = VK_PIPELINE_STAGE_TRANSFER_BIT;
     VkSubmitInfo submit_info[1] = {};
     submit_info[0].pNext = NULL;
@@ -785,7 +790,7 @@ void render()
     VkPresentInfoKHR present_info = {}; 
     present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;          
     present_info.pNext = nullptr;
-    present_info.waitSemaphoreCount = 1;                                
+    present_info.waitSemaphoreCount = 0;                                
     present_info.pWaitSemaphores = &g_app.RenderingFinishedSemaphore;
     present_info.swapchainCount = 1;                                    
     present_info.pSwapchains = &g_app.swapchain;                     
