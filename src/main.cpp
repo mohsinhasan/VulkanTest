@@ -11,13 +11,18 @@
 #include <limits.h>
 #include <memory>
 
+
+///
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
+///
+
 VulkanApp g_app;
 
 ///
-void executeBeginCommandBuffer() 
+void executeBeginCommandBuffer(uint16_t iBuffer) 
 {
     /* DEPENDS on init_command_buffer() */
-    VkResult res;
+    VkResult result;
  
     VkCommandBufferBeginInfo cmd_buf_info = {};
     cmd_buf_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -25,26 +30,25 @@ void executeBeginCommandBuffer()
     cmd_buf_info.flags = 0;
     cmd_buf_info.pInheritanceInfo = NULL;
 
-    res = vkBeginCommandBuffer(g_app.cmd, &cmd_buf_info);
+    result = vkBeginCommandBuffer(g_app.cmd[iBuffer], &cmd_buf_info);
 
-    assert(res == VK_SUCCESS);
+    assert(result == VK_SUCCESS);
 }   
 
-void executeEndCommandBuffer() 
+void executeEndCommandBuffer(uint16_t iBuffer) 
 {
-    VkResult res;
+    VkResult result;
 
-    res = vkEndCommandBuffer(g_app.cmd);
+    result = vkEndCommandBuffer(g_app.cmd[iBuffer]);
 
-    assert(res == VK_SUCCESS);
+    assert(result == VK_SUCCESS);
 }
 
-void executeQueueCommandBuffer() 
+void executeQueueCommandBuffer(uint16_t iBuffer) 
 {
-    VkResult res;
+    VkResult result;
 
     /* Queue the command buffer for execution */
-    const VkCommandBuffer cmd_bufs[] = {g_app.cmd};
     VkFenceCreateInfo fenceInfo;
     VkFence drawFence;
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
@@ -60,19 +64,19 @@ void executeQueueCommandBuffer()
     submit_info[0].pWaitSemaphores = NULL;
     submit_info[0].pWaitDstStageMask = &pipe_stage_flags;
     submit_info[0].commandBufferCount = 1;
-    submit_info[0].pCommandBuffers = cmd_bufs;
+    submit_info[0].pCommandBuffers = &g_app.cmd[iBuffer];
     submit_info[0].signalSemaphoreCount = 0;
     submit_info[0].pSignalSemaphores = NULL;
 
-    res = vkQueueSubmit(g_app.queue, 1, submit_info, drawFence);
-    assert(res == VK_SUCCESS);
+    result = vkQueueSubmit(g_app.queue, 1, submit_info, drawFence);
+    assert(result == VK_SUCCESS);
 
     do 
     {
-        res = vkWaitForFences(g_app.device, 1, &drawFence, VK_TRUE, FENCE_TIMEOUT);
-    } while (res == VK_TIMEOUT);
+        result = vkWaitForFences(g_app.device, 1, &drawFence, VK_TRUE, FENCE_TIMEOUT);
+    } while (result == VK_TIMEOUT);
 
-    assert(res == VK_SUCCESS);
+    assert(result == VK_SUCCESS);
 
     vkDestroyFence(g_app.device, drawFence, NULL);
 }
@@ -123,6 +127,8 @@ bool initWindow()
 
         g_app.window = glfwCreateWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Vulkan Test", NULL, NULL);
     }
+
+    glfwSetKeyCallback(g_app.window, key_callback);
 
     return (g_app.window != nullptr);
 }
@@ -211,14 +217,14 @@ bool initVKDevice()
     return (vkCreateDevice(g_app.gpu[0], &deviceCreateInfo, nullptr, &g_app.device) == VK_SUCCESS);
 }
 
-void setImageLayout(VkImage image,
+void setImageLayout(uint16_t iBuffer, VkImage image,
                     VkImageAspectFlags aspectMask,
                     VkImageLayout old_image_layout,
                     VkImageLayout new_image_layout) 
 {
     /* DEPENDS on info.cmd and info.queue initialized */
 
-    assert(g_app.cmd != VK_NULL_HANDLE);
+    assert(g_app.cmd[iBuffer] != VK_NULL_HANDLE);
     assert(g_app.queue != VK_NULL_HANDLE);
 
     VkImageMemoryBarrier image_memory_barrier = {};
@@ -281,7 +287,7 @@ void setImageLayout(VkImage image,
     VkPipelineStageFlags src_stages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
     VkPipelineStageFlags dest_stages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 
-    vkCmdPipelineBarrier(g_app.cmd, src_stages, dest_stages, 0, 0, NULL, 0, NULL, 1, &image_memory_barrier);
+    vkCmdPipelineBarrier(g_app.cmd[iBuffer], src_stages, dest_stages, 0, 0, NULL, 0, NULL, 1, &image_memory_barrier);
 }
 
 bool initVKSwapchain()
@@ -304,20 +310,20 @@ bool initVKSwapchain()
     // identify surface capabilities
     VkSurfaceCapabilitiesKHR surfCapabilities;
 
-    VkResult res = VK_SUCCESS;
+    VkResult result = VK_SUCCESS;
 
-    res = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(g_app.gpu[0], g_app.renderSurface, &surfCapabilities);
-    assert(res == VK_SUCCESS);
+    result = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(g_app.gpu[0], g_app.renderSurface, &surfCapabilities);
+    assert(result == VK_SUCCESS);
 
     uint32_t presentModeCount;
-    res = vkGetPhysicalDeviceSurfacePresentModesKHR(g_app.gpu[0], g_app.renderSurface, &presentModeCount, NULL);
-    assert(res == VK_SUCCESS);
+    result = vkGetPhysicalDeviceSurfacePresentModesKHR(g_app.gpu[0], g_app.renderSurface, &presentModeCount, NULL);
+    assert(result == VK_SUCCESS);
 
     std::vector<VkPresentModeKHR> presentModes;
     presentModes.resize(presentModeCount);
     
-    res = vkGetPhysicalDeviceSurfacePresentModesKHR(g_app.gpu[0], g_app.renderSurface, &presentModeCount, &presentModes[0]);
-    assert(res == VK_SUCCESS);
+    result = vkGetPhysicalDeviceSurfacePresentModesKHR(g_app.gpu[0], g_app.renderSurface, &presentModeCount, &presentModes[0]);
+    assert(result == VK_SUCCESS);
 
     // Determine the number of VkImage's to use in the swap chain (we desire to
     // own only 1 image at a time, besides the images being displayed and
@@ -370,23 +376,21 @@ bool initVKSwapchain()
     info.clipped = true;
     info.oldSwapchain = nullptr;
 
-    res = vkCreateSwapchainKHR(g_app.device, &info, nullptr, &g_app.swapchain);
-    assert(res == VK_SUCCESS);
+    result = vkCreateSwapchainKHR(g_app.device, &info, nullptr, &g_app.swapchain);
+    assert(result == VK_SUCCESS);
 
-    res = vkGetSwapchainImagesKHR(g_app.device, g_app.swapchain, &g_app.swapchainImageCount, nullptr);
-    assert(res == VK_SUCCESS);
+    result = vkGetSwapchainImagesKHR(g_app.device, g_app.swapchain, &g_app.swapchainImageCount, nullptr);
+    assert(result == VK_SUCCESS);
 
     g_app.swapBuffers.resize(g_app.swapchainImageCount);
+    g_app.cmd.resize(g_app.swapchainImageCount);
 
     std::vector<VkImage> swapchainImages;
     swapchainImages.resize(g_app.swapchainImageCount);
     
-    res = vkGetSwapchainImagesKHR(g_app.device, g_app.swapchain, &g_app.swapchainImageCount, &swapchainImages[0]);
-    assert(res == VK_SUCCESS);
+    result = vkGetSwapchainImagesKHR(g_app.device, g_app.swapchain, &g_app.swapchainImageCount, &swapchainImages[0]);
+    assert(result == VK_SUCCESS);
 
-    executeBeginCommandBuffer();
-    vkGetDeviceQueue(g_app.device, g_app.graphicsQueueFamilyIndex, 0, &g_app.queue);
-    
     for (uint32_t i = 0; i < g_app.swapchainImageCount; i++) 
     {
         VkImageViewCreateInfo colorImageView = {};
@@ -407,16 +411,11 @@ bool initVKSwapchain()
 
         g_app.swapBuffers[i].image = swapchainImages[i];
 
-        setImageLayout(g_app.swapBuffers[i].image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-
         colorImageView.image = g_app.swapBuffers[i].image;
 
-        res = vkCreateImageView(g_app.device, &colorImageView, NULL, &g_app.swapBuffers[i].view);
-        assert(res == VK_SUCCESS);
+        result = vkCreateImageView(g_app.device, &colorImageView, NULL, &g_app.swapBuffers[i].view);
+        assert(result == VK_SUCCESS);
     }
-
-    executeEndCommandBuffer();
-    executeQueueCommandBuffer();
 
     return true;
 }
@@ -506,8 +505,8 @@ bool initVKDepthBuffer()
     g_app.depth.format = depth_format;
 
     /* Create image */
-    VkResult res = vkCreateImage(g_app.device, &image_info, NULL, &g_app.depth.image);
-    assert(res == VK_SUCCESS);
+    VkResult result = vkCreateImage(g_app.device, &image_info, NULL, &g_app.depth.image);
+    assert(result == VK_SUCCESS);
 
     VkMemoryRequirements memReqs;
     vkGetImageMemoryRequirements(g_app.device, g_app.depth.image, &memReqs);
@@ -518,22 +517,20 @@ bool initVKDepthBuffer()
     assert(pass);
 
     /* Allocate memory */
-    res = vkAllocateMemory(g_app.device, &mem_alloc, NULL, &g_app.depth.mem);
-    assert(res == VK_SUCCESS);
+    result = vkAllocateMemory(g_app.device, &mem_alloc, NULL, &g_app.depth.mem);
+    assert(result == VK_SUCCESS);
 
     /* Bind memory */
-    res = vkBindImageMemory(g_app.device, g_app.depth.image, g_app.depth.mem, 0);
-    assert(res == VK_SUCCESS);
+    result = vkBindImageMemory(g_app.device, g_app.depth.image, g_app.depth.mem, 0);
+    assert(result == VK_SUCCESS);
 
     /* Set the image layout to depth stencil optimal */
-    setImageLayout(g_app.depth.image, VK_IMAGE_ASPECT_DEPTH_BIT,
-                     VK_IMAGE_LAYOUT_UNDEFINED,
-                     VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+    //setImageLayout(0, g_app.depth.image, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
     /* Create image view */
     view_info.image = g_app.depth.image;
-    res = vkCreateImageView(g_app.device, &view_info, NULL, &g_app.depth.view);
-    assert(res == VK_SUCCESS);
+    result = vkCreateImageView(g_app.device, &view_info, NULL, &g_app.depth.view);
+    assert(result == VK_SUCCESS);
 
     return true;
 }
@@ -631,7 +628,7 @@ bool initVKFrameBuffer()
 bool initVKCommandPool() 
 {
     /* DEPENDS on init_swapchain_extension() */
-    VkResult  res;
+    VkResult  result;
 
     VkCommandPoolCreateInfo cmd_pool_info = {};
     cmd_pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -639,40 +636,37 @@ bool initVKCommandPool()
     cmd_pool_info.queueFamilyIndex = g_app.graphicsQueueFamilyIndex;
     cmd_pool_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
-    res = vkCreateCommandPool(g_app.device, &cmd_pool_info, NULL, &g_app.cmdPool);
+    result = vkCreateCommandPool(g_app.device, &cmd_pool_info, NULL, &g_app.cmdPool);
 
-    assert(res == VK_SUCCESS);
+    assert(result == VK_SUCCESS);
 
-    return (res == VK_SUCCESS);
+    return (result == VK_SUCCESS);
 }
 
 bool initVKCommandBuffer() 
 {
-    /* DEPENDS on init_swapchain_extension() and init_command_pool() */
-    VkResult  res;
+    VkResult  result;
 
     VkCommandBufferAllocateInfo cmd = {};
     cmd.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     cmd.pNext = NULL;
     cmd.commandPool = g_app.cmdPool;
     cmd.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    cmd.commandBufferCount = 1;
+    cmd.commandBufferCount = g_app.swapchainImageCount;
 
-    res = vkAllocateCommandBuffers(g_app.device, &cmd, &g_app.cmd);
+    result = vkAllocateCommandBuffers(g_app.device, &cmd, &g_app.cmd[0]);
 
-    assert(res == VK_SUCCESS);
+    assert(result == VK_SUCCESS);
 
-    return (res == VK_SUCCESS);
+    return (result == VK_SUCCESS);
 }
 
 bool initSemaphores() 
 {
-    VkSemaphoreCreateInfo semaphore_create_info = 
-    {
-      VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,      // VkStructureType          sType
-      nullptr,                                      // const void*              pNext
-      0                                             // VkSemaphoreCreateFlags   flags
-    };
+    VkSemaphoreCreateInfo semaphore_create_info = {};
+    semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;    // VkStructureType          
+    semaphore_create_info.pNext = nullptr;                                    // const void*
+    semaphore_create_info.flags = 0;                                          // VkSemaphoreCreateFlags   flags
 
     if( (vkCreateSemaphore( g_app.device, &semaphore_create_info, nullptr, &g_app.ImageAvailableSemaphore ) != VK_SUCCESS) ||
         (vkCreateSemaphore( g_app.device, &semaphore_create_info, nullptr, &g_app.RenderingFinishedSemaphore ) != VK_SUCCESS) ) 
@@ -689,9 +683,9 @@ bool initVulkan()
             initVKSurface()     &&
             initVKDevice()      &&
             initVKCommandPool()   &&
-            initVKCommandBuffer() &&
             initVKSwapchain()   &&
-            initVKDepthBuffer() &&
+            initVKCommandBuffer() &&            
+            //initVKDepthBuffer() &&
             initVKRenderPass()  &&
             initVKFrameBuffer() &&
             initSemaphores();
@@ -708,73 +702,69 @@ void destroyWindow()
     vkDestroySwapchainKHR(g_app.device, g_app.swapchain, nullptr);
 }
 
-
-void clear()
+void clearScreen()
 {
     // clear back buffer
     VkClearColorValue clear_color = 
     {
-      { 1.0f, 0.8f, 0.4f, 0.0f }
+        { 1.0f, 0.8f, 0.4f, 0.0f }
     };
 
-    VkImageSubresourceRange image_subresource_range = 
-    {
-      VK_IMAGE_ASPECT_COLOR_BIT,                    // VkImageAspectFlags                     aspectMask
-      0,                                            // uint32_t                               baseMipLevel
-      1,                                            // uint32_t                               levelCount
-      0,                                            // uint32_t                               baseArrayLayer
-      1                                             // uint32_t                               layerCount
-    };
+    VkImageSubresourceRange image_subresource_range; 
+    image_subresource_range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;                   
+    image_subresource_range.baseMipLevel = 0;                                         
+    image_subresource_range.levelCount = 1;                                           
+    image_subresource_range.baseArrayLayer = 0;                                       
+    image_subresource_range.layerCount = 1;                                                  
     
     for (uint32_t i = 0; i < g_app.swapchainImageCount; ++i) 
     {
-        VkImageMemoryBarrier barrier_from_present_to_clear = 
-        {
-            VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,     // VkStructureType                        sType
-            nullptr,                                    // const void                            *pNext
-            VK_ACCESS_MEMORY_READ_BIT,                  // VkAccessFlags                          srcAccessMask
-            VK_ACCESS_TRANSFER_WRITE_BIT,               // VkAccessFlags                          dstAccessMask
-            VK_IMAGE_LAYOUT_UNDEFINED,                  // VkImageLayout                          oldLayout
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,       // VkImageLayout                          newLayout
-            VK_QUEUE_FAMILY_IGNORED,                    // uint32_t                               srcQueueFamilyIndex
-            VK_QUEUE_FAMILY_IGNORED,                    // uint32_t                               dstQueueFamilyIndex
-            g_app.swapBuffers[i].image,                 // VkImage                                image
-            image_subresource_range                     // VkImageSubresourceRange                subresourceRange
-        };
+        VkImageMemoryBarrier barrier_from_present_to_clear = {}; 
+        barrier_from_present_to_clear.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier_from_present_to_clear.pNext = nullptr;
+        barrier_from_present_to_clear.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+        barrier_from_present_to_clear.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier_from_present_to_clear.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        barrier_from_present_to_clear.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        barrier_from_present_to_clear.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier_from_present_to_clear.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier_from_present_to_clear.image = g_app.swapBuffers[i].image;
+        barrier_from_present_to_clear.subresourceRange = image_subresource_range;
 
-        VkImageMemoryBarrier barrier_from_clear_to_present = 
-        {
-            VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,     // VkStructureType                        sType
-            nullptr,                                    // const void                            *pNext
-            VK_ACCESS_TRANSFER_WRITE_BIT,               // VkAccessFlags                          srcAccessMask
-            VK_ACCESS_MEMORY_READ_BIT,                  // VkAccessFlags                          dstAccessMask
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,       // VkImageLayout                          oldLayout
-            VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,            // VkImageLayout                          newLayout
-            VK_QUEUE_FAMILY_IGNORED,                    // uint32_t                               srcQueueFamilyIndex
-            VK_QUEUE_FAMILY_IGNORED,                    // uint32_t                               dstQueueFamilyIndex
-            g_app.swapBuffers[i].image,                 // VkImage                                image
-            image_subresource_range                     // VkImageSubresourceRange                subresourceRange
-        };
+        VkImageMemoryBarrier barrier_from_clear_to_present = {}; 
+        barrier_from_clear_to_present.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;// VkStructureType                        
+        barrier_from_clear_to_present.pNext = nullptr;                               // const void                            
+        barrier_from_clear_to_present.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;          // VkAccessFlags                          
+        barrier_from_clear_to_present.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;             // VkAccessFlags                          
+        barrier_from_clear_to_present.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;  // VkImageLayout                          
+        barrier_from_clear_to_present.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;       // VkImageLayout                          
+        barrier_from_clear_to_present.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;               // uint32_t                               
+        barrier_from_clear_to_present.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;               // uint32_t                               
+        barrier_from_clear_to_present.image = g_app.swapBuffers[i].image;            // VkImage                                
+        barrier_from_clear_to_present.subresourceRange = image_subresource_range;                     // VkImageSubresourceRange                
 
-        executeBeginCommandBuffer();
-        vkCmdPipelineBarrier( g_app.cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier_from_present_to_clear );
-        vkCmdClearColorImage( g_app.cmd, g_app.swapBuffers[i].image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clear_color, 1, &image_subresource_range );
-        vkCmdPipelineBarrier( g_app.cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier_from_clear_to_present );
-        executeEndCommandBuffer();
-        executeQueueCommandBuffer(); //[MH][TODO] : Removing this causes flickering. Why do we need this for correct image display?
+        executeBeginCommandBuffer(i);
+
+        vkGetDeviceQueue(g_app.device, g_app.graphicsQueueFamilyIndex, 0, &g_app.queue);
+
+        setImageLayout(i, g_app.swapBuffers[i].image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        
+        vkCmdPipelineBarrier( g_app.cmd[i], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier_from_present_to_clear );
+        vkCmdClearColorImage( g_app.cmd[i], g_app.swapBuffers[i].image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clear_color, 1, &image_subresource_range );
+        vkCmdPipelineBarrier( g_app.cmd[i], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier_from_clear_to_present );
+        executeEndCommandBuffer(i);
+        executeQueueCommandBuffer(i); //[MH][TODO] : Removing this causes flickering. Why do we need this for correct image display?
     }
 }
 
 void render()
 {
     uint32_t image_index;
+
     VkResult result = vkAcquireNextImageKHR( g_app.device, g_app.swapchain, UINT64_MAX, g_app.ImageAvailableSemaphore, VK_NULL_HANDLE, &image_index );
     assert (result == VK_SUCCESS);
 
-    VkResult res;
-
     /* Queue the command buffer for execution */
-    const VkCommandBuffer cmd_bufs[] = {g_app.cmd};
 
     VkPipelineStageFlags pipe_stage_flags = VK_PIPELINE_STAGE_TRANSFER_BIT;
     VkSubmitInfo submit_info[1] = {};
@@ -784,57 +774,63 @@ void render()
     submit_info[0].pWaitSemaphores = &g_app.ImageAvailableSemaphore;
     submit_info[0].pWaitDstStageMask = &pipe_stage_flags;
     submit_info[0].commandBufferCount = 1;
-    submit_info[0].pCommandBuffers = cmd_bufs;
+    submit_info[0].pCommandBuffers = &g_app.cmd[image_index];
     submit_info[0].signalSemaphoreCount = 1;
     submit_info[0].pSignalSemaphores = &g_app.RenderingFinishedSemaphore;
 
-    res = vkQueueSubmit(g_app.queue, 1, submit_info, VK_NULL_HANDLE);
-    assert(res == VK_SUCCESS);
+    result = vkQueueSubmit(g_app.queue, 1, submit_info, VK_NULL_HANDLE);
+    assert(result == VK_SUCCESS);
 
     // swap buffers
-    VkPresentInfoKHR present_info = 
-    {
-        VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,           // VkStructureType              sType
-        nullptr,                                      // const void                  *pNext
-        1,                                            // uint32_t                     waitSemaphoreCount
-        &g_app.RenderingFinishedSemaphore,           // const VkSemaphore           *pWaitSemaphores
-        1,                                            // uint32_t                     swapchainCount
-        &g_app.swapchain,                            // const VkSwapchainKHR        *pSwapchains
-        &image_index,                                 // const uint32_t              *pImageIndices
-        nullptr                                       // VkResult                    *pResults
-    };
+    VkPresentInfoKHR present_info = {}; 
+    present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;          
+    present_info.pNext = nullptr;
+    present_info.waitSemaphoreCount = 1;                                
+    present_info.pWaitSemaphores = &g_app.RenderingFinishedSemaphore;
+    present_info.swapchainCount = 1;                                    
+    present_info.pSwapchains = &g_app.swapchain;                     
+    present_info.pImageIndices = &image_index;                       
+    present_info.pResults = nullptr;                                 
 
     result = vkQueuePresentKHR( g_app.queue, &present_info );
 
     assert (result == VK_SUCCESS);
 }
- 
-int mainloop()
-{
-    render();
 
-    return 1;
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
+{
+    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+    {
+        g_app.shouldExit = true;       
+    }
+} 
+
+bool mainloop()
+{
+    glfwPollEvents();
+    
+    render();
+    
+    return !(g_app.shouldExit);
 }
- 
+
 int main(int argc, char **argv)
 {
     printf("Entering Vulkan Test program");
+    init(); // init Vulkan subsystems
+    printf("Vulkan init success!!!\n");
 
-    if (init())
+    clearScreen(); // record command buffer
+
+    do 
     {
-        printf("Vulkan init success!!!\n");
-
-        clear(); // record command buffer
-
-        while(mainloop())
-        {
-        };
-        
-        destroyWindow();
+        render();
     }
+    while(!g_app.shouldExit);
+        
+    destroyWindow();
 
     printf("Exiting program");
-    getchar();
 
     return 0;
 }

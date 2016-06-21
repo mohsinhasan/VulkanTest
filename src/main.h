@@ -21,6 +21,11 @@ const uint FENCE_TIMEOUT = 100000000;
 
 struct VulkanApp
 {
+    VulkanApp()
+    {
+        shouldExit = 0;
+    }
+
    //The window we'll be rendering to
     GLFWwindow* window = NULL;
 
@@ -60,15 +65,17 @@ struct VulkanApp
     std::vector<VkQueueFamilyProperties> queueProperties;
     uint32_t graphicsQueueFamilyIndex;
 
-    VkPhysicalDeviceProperties gpuProps;
-    VkPhysicalDeviceMemoryProperties memoryProperties;
+    VkPhysicalDeviceProperties          gpuProps;
+    VkPhysicalDeviceMemoryProperties    memoryProperties;
 
-    VkCommandPool cmdPool;
-    VkCommandBuffer cmd; // Buffer for initialization commands
+    VkCommandPool   cmdPool;
+    std::vector<VkCommandBuffer> cmd; // Buffer for initialization commands
     VkQueue queue;
 
-    VkSemaphore                   ImageAvailableSemaphore;
-    VkSemaphore                   RenderingFinishedSemaphore;
+    VkSemaphore    ImageAvailableSemaphore;
+    VkSemaphore    RenderingFinishedSemaphore;
+
+    bool shouldExit;
 };
 
 #endif //__MAIN_H__
