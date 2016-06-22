@@ -69,7 +69,9 @@ struct VulkanApp
     VkPhysicalDeviceMemoryProperties    memoryProperties;
 
     VkCommandPool   cmdPool;
-    std::vector<VkCommandBuffer> cmd; // Buffer for initialization commands
+    std::vector<VkCommandBuffer> drawCmdBuffers; // Buffer for initialization commands
+    VkCommandBuffer postPresentCmdBuffer; // Buffer for initialization commands
+
     VkQueue queue;
 
     VkSemaphore    ImageAvailableSemaphore;

@@ -30,7 +30,7 @@ void executeBeginCommandBuffer(uint16_t iBuffer)
     cmd_buf_info.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
     cmd_buf_info.pInheritanceInfo = NULL;
 
-    result = vkBeginCommandBuffer(g_app.cmd[iBuffer], &cmd_buf_info);
+    result = vkBeginCommandBuffer(g_app.drawCmdBuffers[iBuffer], &cmd_buf_info);
 
     assert(result == VK_SUCCESS);
 }   
@@ -39,7 +39,7 @@ void executeEndCommandBuffer(uint16_t iBuffer)
 {
     VkResult result;
 
-    result = vkEndCommandBuffer(g_app.cmd[iBuffer]);
+    result = vkEndCommandBuffer(g_app.drawCmdBuffers[iBuffer]);
 
     assert(result == VK_SUCCESS);
 }
@@ -64,7 +64,7 @@ void executeQueueCommandBuffer(uint16_t iBuffer)
     submit_info[0].pWaitSemaphores = NULL;
     submit_info[0].pWaitDstStageMask = &pipe_stage_flags;
     submit_info[0].commandBufferCount = 1;
-    submit_info[0].pCommandBuffers = &g_app.cmd[iBuffer];
+    submit_info[0].pCommandBuffers = &g_app.drawCmdBuffers[iBuffer];
     submit_info[0].signalSemaphoreCount = 0;
     submit_info[0].pSignalSemaphores = NULL;
 
@@ -192,13 +192,13 @@ bool initVKDevice()
 
     g_app.graphicsQueueFamilyIndex = graphicsQueueNodeIndex;
 
-    float queue_priorities[1] = {0.0};
+    float queue_priorities[1] = {1.0};
 
     VkDeviceQueueCreateInfo queueCreateInfo;
     queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
     queueCreateInfo.pNext = nullptr;
     queueCreateInfo.flags = 0;
-    queueCreateInfo.pQueuePriorities = queue_priorities;
+    queueCreateInfo.pQueuePriorities = &queue_priorities[0];
     queueCreateInfo.queueCount = 1;
     queueCreateInfo.queueFamilyIndex = g_app.graphicsQueueFamilyIndex;
 
@@ -232,7 +232,7 @@ void setImageLayout(uint16_t iBuffer, VkImage image,
 {
     /* DEPENDS on info.cmd and info.queue initialized */
 
-    assert(g_app.cmd[iBuffer] != VK_NULL_HANDLE);
+    assert(g_app.drawCmdBuffers[iBuffer] != VK_NULL_HANDLE);
     assert(g_app.queue != VK_NULL_HANDLE);
 
     VkImageMemoryBarrier image_memory_barrier = {};
@@ -295,7 +295,7 @@ void setImageLayout(uint16_t iBuffer, VkImage image,
     VkPipelineStageFlags src_stages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
     VkPipelineStageFlags dest_stages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 
-    vkCmdPipelineBarrier(g_app.cmd[iBuffer], src_stages, dest_stages, 0, 0, NULL, 0, NULL, 1, &image_memory_barrier);
+    vkCmdPipelineBarrier(g_app.drawCmdBuffers[iBuffer], src_stages, dest_stages, 0, 0, NULL, 0, NULL, 1, &image_memory_barrier);
 }
 
 bool initVKSwapchain()
@@ -391,7 +391,7 @@ bool initVKSwapchain()
     assert(result == VK_SUCCESS);
 
     g_app.swapBuffers.resize(g_app.swapchainImageCount);
-    g_app.cmd.resize(g_app.swapchainImageCount);
+    g_app.drawCmdBuffers.resize(g_app.swapchainImageCount);
 
     std::vector<VkImage> swapchainImages;
     swapchainImages.resize(g_app.swapchainImageCount);
@@ -662,7 +662,10 @@ bool initVKCommandBuffer()
     cmd.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     cmd.commandBufferCount = g_app.swapchainImageCount;
 
-    result = vkAllocateCommandBuffers(g_app.device, &cmd, &g_app.cmd[0]);
+    result = vkAllocateCommandBuffers(g_app.device, &cmd, g_app.drawCmdBuffers.data());
+    
+    cmd.commandBufferCount = 1;
+    result = vkAllocateCommandBuffers(g_app.device, &cmd, &g_app.postPresentCmdBuffer);
 
     assert(result == VK_SUCCESS);
 
@@ -694,8 +697,8 @@ bool initVulkan()
             initVKSwapchain()   &&
             initVKCommandBuffer() &&            
             //initVKDepthBuffer() &&
-            initVKRenderPass()  &&
-            initVKFrameBuffer() &&
+            //initVKRenderPass()  &&
+            //initVKFrameBuffer() &&
             initSemaphores();
 }
 
@@ -752,23 +755,77 @@ void clearScreen()
         barrier_from_clear_to_present.subresourceRange = image_subresource_range;                     // VkImageSubresourceRange                
 
         executeBeginCommandBuffer(i);
-
         //setImageLayout(i, g_app.swapBuffers[i].image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-        
-        vkCmdPipelineBarrier( g_app.cmd[i], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier_from_present_to_clear );
-        vkCmdClearColorImage( g_app.cmd[i], g_app.swapBuffers[i].image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clear_color, 1, &image_subresource_range );
-        vkCmdPipelineBarrier( g_app.cmd[i], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier_from_clear_to_present );
+
+        vkCmdPipelineBarrier( g_app.drawCmdBuffers[i], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier_from_present_to_clear );
+        vkCmdClearColorImage( g_app.drawCmdBuffers[i], g_app.swapBuffers[i].image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clear_color, 1, &image_subresource_range );
+        vkCmdPipelineBarrier( g_app.drawCmdBuffers[i], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier_from_clear_to_present );
+
         executeEndCommandBuffer(i);
+        
         //executeQueueCommandBuffer(i); //[MH][TODO] : Removing this causes flickering. Why do we need this for correct image display?
     }
 }
 
 void render()
 {
-    uint32_t image_index;
-
-    VkResult result = vkAcquireNextImageKHR( g_app.device, g_app.swapchain, UINT64_MAX, g_app.ImageAvailableSemaphore, VK_NULL_HANDLE, &image_index );
+    VkResult result = VK_SUCCESS;
+    
+    result = vkQueueWaitIdle(g_app.queue);
     assert (result == VK_SUCCESS);
+
+    uint32_t image_index;
+    
+    result = vkAcquireNextImageKHR( g_app.device, g_app.swapchain, UINT64_MAX, g_app.ImageAvailableSemaphore, VK_NULL_HANDLE, &image_index );
+    assert (result == VK_SUCCESS);
+
+   /* // Add a post present image memory barrier
+    // This will transform the frame buffer color attachment back
+    // to it's initial layout after it has been presented to the
+    // windowing system
+    VkImageMemoryBarrier postPresentBarrier = {};
+    postPresentBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    postPresentBarrier.pNext = NULL;
+    postPresentBarrier.srcAccessMask = 0;
+    postPresentBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    postPresentBarrier.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    postPresentBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    postPresentBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    postPresentBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    postPresentBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+    postPresentBarrier.image = g_app.swapBuffers[image_index].image;
+
+    // Use dedicated command buffer from example base class for submitting the post present barrier
+    VkCommandBufferBeginInfo cmdBufInfo = {};
+    cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
+    result = vkBeginCommandBuffer(g_app.postPresentCmdBuffer, &cmdBufInfo);
+    assert (result == VK_SUCCESS);
+
+    // Put post present barrier into command buffer
+    vkCmdPipelineBarrier(
+        g_app.postPresentCmdBuffer,
+        VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        0,
+        0, nullptr,
+        0, nullptr,
+        1, &postPresentBarrier);
+
+    result = vkEndCommandBuffer(g_app.postPresentCmdBuffer);
+    assert (result == VK_SUCCESS);    
+
+    // Submit the image barrier to the current queue
+    VkSubmitInfo submitInfo = {};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &g_app.postPresentCmdBuffer;
+
+    result = vkQueueSubmit(g_app.queue, 1, &submitInfo, VK_NULL_HANDLE);
+    assert (result == VK_SUCCESS);*/
+
+    // Make sure that the image barrier command submitted to the queue 
+    // has finished executing
 
     /* Queue the command buffer for execution */
     VkPipelineStageFlags pipe_stage_flags = VK_PIPELINE_STAGE_TRANSFER_BIT;
@@ -779,7 +836,7 @@ void render()
     submit_info[0].pWaitSemaphores = &g_app.ImageAvailableSemaphore;
     submit_info[0].pWaitDstStageMask = &pipe_stage_flags;
     submit_info[0].commandBufferCount = 1;
-    submit_info[0].pCommandBuffers = &g_app.cmd[image_index];
+    submit_info[0].pCommandBuffers = &g_app.drawCmdBuffers[image_index];
     submit_info[0].signalSemaphoreCount = 1;
     submit_info[0].pSignalSemaphores = &g_app.RenderingFinishedSemaphore;
 
@@ -790,7 +847,7 @@ void render()
     VkPresentInfoKHR present_info = {}; 
     present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;          
     present_info.pNext = nullptr;
-    present_info.waitSemaphoreCount = 0;                                
+    present_info.waitSemaphoreCount = 1;                                
     present_info.pWaitSemaphores = &g_app.RenderingFinishedSemaphore;
     present_info.swapchainCount = 1;                                    
     present_info.pSwapchains = &g_app.swapchain;                     
@@ -810,13 +867,11 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     }
 } 
 
-bool mainloop()
+void mainloop()
 {
     glfwPollEvents();
     
     render();
-    
-    return !(g_app.shouldExit);
 }
 
 int main(int argc, char **argv)
@@ -829,7 +884,7 @@ int main(int argc, char **argv)
 
     do 
     {
-        render();
+        mainloop();
     }
     while(!g_app.shouldExit);
         
