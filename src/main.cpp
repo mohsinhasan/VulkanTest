@@ -11,6 +11,8 @@
 #include <limits.h>
 #include <memory>
 
+#include <cstring>
+
 
 ///
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
@@ -721,11 +723,22 @@ bool initVertexData()
     vertexBufferInfo.size = vertexBufferSize;
     vertexBufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
 
+    void *data;
+
+    // vertex Buffer
     // copy data to buffer visible to host
     vkCreateBuffer(g_app.device, &vertexBufferInfo, nullptr, &g_app.vertices.buffer);
     vkGetBufferMemoryRequirements(g_app.device, g_app.vertices.buffer, &memReqs);
     mem_alloc.allocationSize = memReqs.size;
     memoryTypeFromProperties(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &mem_alloc.memoryTypeIndex);
+    vkAllocateMemory(g_app.device, &mem_alloc, nullptr, &g_app.vertices.mem);
+
+    vkMapMemory(g_app.device, g_app.vertices.mem, 0, mem_alloc.allocationSize, 0, &data);
+    memcpy(data, triangleVertices.data(), vertexBufferSize);
+    vkUnmapMemory(g_app.device, g_app.vertices.mem);
+    vkBindBufferMemory(g_app.device, g_app.vertices.buffer, g_app.vertices.mem, 0);
+
+    // index Buffer [TODO]
 
     return true;
 }
