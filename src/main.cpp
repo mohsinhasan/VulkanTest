@@ -91,6 +91,7 @@ void fatalError(char *message)
 
 void redraw(void)
 {
+
 }
 
 bool initVKInstance()
@@ -533,7 +534,7 @@ bool initVKDepthBuffer()
     assert(result == VK_SUCCESS);
 
     /* Set the image layout to depth stencil optimal */
-    //setImageLayout(0, g_app.depth.image, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+    setImageLayout(0, g_app.depth.image, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
     /* Create image view */
     view_info.image = g_app.depth.image;
@@ -688,6 +689,67 @@ bool initSemaphores()
     return true;
 }
 
+bool initVertexData()
+{
+    // vertices
+    struct vertex
+    {
+        float veritces[3];
+        float colors[3];
+    };
+
+    std::vector<vertex> triangleVertices = { 
+        { {  1.0f,  1.0f, 0.0f }, { 1.0f, 0.0f, 0.0f } },
+        { { -1.0f,  1.0f, 0.0f }, { 0.0f, 1.0f, 0.0f } },
+        { {  0.0f, -1.0f, 0.0f }, { 0.0f, 0.0f, 1.0f } }
+    };
+
+    uint32_t vertexBufferSize = triangleVertices.size() * sizeof (vertex);
+
+    // indices
+    std::vector<uint32_t> triangleIndices = {0, 1, 2};
+
+    VkMemoryAllocateInfo mem_alloc = {};
+    mem_alloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+
+    VkMemoryRequirements memReqs;
+
+    // create host visible memory to put data in
+    VkBufferCreateInfo vertexBufferInfo = {};
+
+    vertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    vertexBufferInfo.size = vertexBufferSize;
+    vertexBufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+
+    // copy data to buffer visible to host
+    vkCreateBuffer(g_app.device, &vertexBufferInfo, nullptr, &g_app.vertices.buffer);
+    vkGetBufferMemoryRequirements(g_app.device, g_app.vertices.buffer, &memReqs);
+    mem_alloc.allocationSize = memReqs.size;
+    memoryTypeFromProperties(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &mem_alloc.memoryTypeIndex);
+
+    return true;
+}
+
+bool initDescriptorSetLayout()
+{
+    return true;
+}
+
+bool initDescriptorPool()
+{
+    return true;
+}
+
+bool initDescriptorSet()
+{
+    return true;
+}
+
+bool initPipelines()
+{
+    return true;
+} 
+
 bool initVulkan()
 {
     return  initVKInstance()    &&
@@ -696,9 +758,9 @@ bool initVulkan()
             initVKCommandPool()   &&
             initVKSwapchain()   &&
             initVKCommandBuffer() &&            
-            //initVKDepthBuffer() &&
-            //initVKRenderPass()  &&
-            //initVKFrameBuffer() &&
+            initVKDepthBuffer() &&
+            initVKRenderPass()  &&
+            initVKFrameBuffer() &&
             initSemaphores();
 }
 
@@ -763,8 +825,13 @@ void clearScreen()
 
         executeEndCommandBuffer(i);
         
-        //executeQueueCommandBuffer(i); //[MH][TODO] : Removing this causes flickering. Why do we need this for correct image display?
+        executeQueueCommandBuffer(i); //[MH][TODO] : Removing this causes flickering. Why do we need this for correct image display?
     }
+}
+
+void createCommandBuffers()
+{
+
 }
 
 void render()
@@ -887,6 +954,9 @@ int main(int argc, char **argv)
         mainloop();
     }
     while(!g_app.shouldExit);
+
+    // Flush device to make sure all resources can be freed 
+	vkDeviceWaitIdle(g_app.device);
         
     destroyWindow();
 

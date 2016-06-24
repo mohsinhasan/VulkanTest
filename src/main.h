@@ -58,6 +58,15 @@ struct VulkanApp
     VkFormat colorFormat;
     VkFormat depthFormat;
 
+    struct 
+    {
+		VkBuffer buffer;
+		VkDeviceMemory mem;
+		VkPipelineVertexInputStateCreateInfo inputState;
+		std::vector<VkVertexInputBindingDescription> bindingDescriptions;
+		std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
+	} vertices;
+
     VkRenderPass renderPass;
     std::vector<VkFramebuffer> framebuffers;
 
