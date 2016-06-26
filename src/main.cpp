@@ -528,11 +528,11 @@ bool initVKDepthBuffer()
     assert(pass);
 
     /* Allocate memory */
-    result = vkAllocateMemory(g_app.device, &mem_alloc, NULL, &g_app.depth.mem);
+    result = vkAllocateMemory(g_app.device, &mem_alloc, NULL, &g_app.depth.memory);
     assert(result == VK_SUCCESS);
 
     /* Bind memory */
-    result = vkBindImageMemory(g_app.device, g_app.depth.image, g_app.depth.mem, 0);
+    result = vkBindImageMemory(g_app.device, g_app.depth.image, g_app.depth.memory, 0);
     assert(result == VK_SUCCESS);
 
     /* Set the image layout to depth stencil optimal */
@@ -711,10 +711,16 @@ bool initVertexData()
     // indices
     std::vector<uint32_t> triangleIndices = {0, 1, 2};
 
+    uint32_t indexBufferSize = triangleIndices.size() * sizeof (uint32_t);
+
     VkMemoryAllocateInfo mem_alloc = {};
     mem_alloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 
     VkMemoryRequirements memReqs;
+
+    void *data;
+
+    // [TODO] : Should add the staging path since that is the more optimal solution instead of the host visible solution below
 
     // create host visible memory to put data in
     VkBufferCreateInfo vertexBufferInfo = {};
@@ -723,33 +729,76 @@ bool initVertexData()
     vertexBufferInfo.size = vertexBufferSize;
     vertexBufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
 
-    void *data;
-
     // vertex Buffer
     // copy data to buffer visible to host
     vkCreateBuffer(g_app.device, &vertexBufferInfo, nullptr, &g_app.vertices.buffer);
     vkGetBufferMemoryRequirements(g_app.device, g_app.vertices.buffer, &memReqs);
     mem_alloc.allocationSize = memReqs.size;
     memoryTypeFromProperties(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &mem_alloc.memoryTypeIndex);
-    vkAllocateMemory(g_app.device, &mem_alloc, nullptr, &g_app.vertices.mem);
+    vkAllocateMemory(g_app.device, &mem_alloc, nullptr, &g_app.vertices.memory);
 
-    vkMapMemory(g_app.device, g_app.vertices.mem, 0, mem_alloc.allocationSize, 0, &data);
+    vkMapMemory(g_app.device, g_app.vertices.memory, 0, mem_alloc.allocationSize, 0, &data);
     memcpy(data, triangleVertices.data(), vertexBufferSize);
-    vkUnmapMemory(g_app.device, g_app.vertices.mem);
-    vkBindBufferMemory(g_app.device, g_app.vertices.buffer, g_app.vertices.mem, 0);
+    vkUnmapMemory(g_app.device, g_app.vertices.memory);
+    vkBindBufferMemory(g_app.device, g_app.vertices.buffer, g_app.vertices.memory, 0);
 
-    // index Buffer [TODO]
+    // index Buffer 
+    VkBufferCreateInfo indexBufferInfo = {};
+
+    indexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    indexBufferInfo.size = indexBufferSize;
+    indexBufferInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+
+    // copy data to buffer visible to host
+    vkCreateBuffer(g_app.device, &indexBufferInfo, nullptr, &g_app.indices.buffer);
+    vkGetBufferMemoryRequirements(g_app.device, g_app.indices.buffer, &memReqs);
+    mem_alloc.allocationSize = memReqs.size;
+    memoryTypeFromProperties(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &mem_alloc.memoryTypeIndex);
+    vkAllocateMemory(g_app.device, &mem_alloc, nullptr, &g_app.indices.memory);
+
+    vkMapMemory(g_app.device, g_app.indices.memory, 0, mem_alloc.allocationSize, 0, &data);
+    memcpy(data, triangleIndices.data(), indexBufferSize);
+    vkUnmapMemory(g_app.device, g_app.indices.memory);
+    vkBindBufferMemory(g_app.device, g_app.indices.buffer, g_app.indices.memory, 0);
 
     return true;
 }
 
 bool initDescriptorSetLayout()
 {
+    VkDescriptorSetLayoutBinding vtxLayoutBinding = {};
+
+    vtxLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    vtxLayoutBinding.descriptorCount = 1;
+    vtxLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    vtxLayoutBinding.pImmutableSamplers = nullptr;
+
+    VkDescriptorSetLayoutCreateInfo descSetCreateInfo = {};
+
+    descSetCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    descSetCreateInfo.pNext = nullptr;
+    descSetCreateInfo.bindingCount = 1;
+    descSetCreateInfo.pBindings = &vtxLayoutBinding;
+
+    vkCreateDescriptorSetLayout(g_app.device, &descSetCreateInfo, nullptr, &g_app.descriptorSetLayout);
+
+    VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
+
+    pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutCreateInfo.pNext = nullptr;
+    pipelineLayoutCreateInfo.setLayoutCount = 1;
+    pipelineLayoutCreateInfo.pSetLayouts = &g_app.descriptorSetLayout;
+
+    vkCreatePipelineLayout(g_app.device, &pipelineLayoutCreateInfo, nullptr, &g_app.pipelineLayout);
+
     return true;
 }
 
 bool initDescriptorPool()
 {
+
+    //[TODO]
+
     return true;
 }
 

@@ -51,7 +51,7 @@ struct VulkanApp
     {
         VkFormat format;
         VkImage image;
-        VkDeviceMemory mem;
+        VkDeviceMemory memory;
         VkImageView view;
     } depth;
     
@@ -61,11 +61,30 @@ struct VulkanApp
     struct 
     {
 		VkBuffer buffer;
-		VkDeviceMemory mem;
+		VkDeviceMemory memory;
 		VkPipelineVertexInputStateCreateInfo inputState;
 		std::vector<VkVertexInputBindingDescription> bindingDescriptions;
 		std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
 	} vertices;
+
+   	struct 
+    {
+		int count;
+		VkBuffer buffer;
+		VkDeviceMemory memory;
+	} indices;
+
+   	// The descriptor set layout describes the shader binding points without referencing
+	// the actual buffers. 
+	// Like the pipeline layout it's pretty much a blueprint and can be used with
+	// different descriptor sets as long as the binding points (and shaders) match
+	VkDescriptorSetLayout descriptorSetLayout;
+
+   	// The pipeline layout defines the resource binding slots to be used with a pipeline
+	// This includes bindings for buffes (ubos, ssbos), images and sampler
+	// A pipeline layout can be used for multiple pipeline (state objects) as long as 
+	// their shaders use the same binding layout
+	VkPipelineLayout pipelineLayout;
 
     VkRenderPass renderPass;
     std::vector<VkFramebuffer> framebuffers;
