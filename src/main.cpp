@@ -796,19 +796,55 @@ bool initDescriptorSetLayout()
 
 bool initDescriptorPool()
 {
+    std::vector<VkDescriptorPoolSize> descriptorTypes;
 
-    //[TODO]
+    // request one for now
+    descriptorTypes.resize(1);
+
+    descriptorTypes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    descriptorTypes[0].descriptorCount = 1;
+
+    VkDescriptorPoolCreateInfo descriptorPoolInfo = {};
+    descriptorPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    descriptorPoolInfo.pNext = nullptr;
+    descriptorPoolInfo.poolSizeCount = 1;
+    descriptorPoolInfo.pPoolSizes = descriptorTypes.data();
+    descriptorPoolInfo.maxSets = 1;
+
+    vkCreateDescriptorPool(g_app.device, &descriptorPoolInfo, nullptr, &g_app.descriptorPool);
 
     return true;
 }
 
 bool initDescriptorSet()
 {
+    VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
+
+    descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    descriptorSetAllocateInfo.descriptorPool = g_app.descriptorPool;
+    descriptorSetAllocateInfo.descriptorSetCount = 1;
+    descriptorSetAllocateInfo.pSetLayouts = &g_app.descriptorSetLayout;
+    
+    vkAllocateDescriptorSets(g_app.device, &descriptorSetAllocateInfo, &g_app.descriptorSet);
+
+    VkWriteDescriptorSet writeDescriptorSet = {};
+
+    writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writeDescriptorSet.dstSet = g_app.descriptorSet;
+    writeDescriptorSet.descriptorCount = 1;
+    writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    writeDescriptorSet.pBufferInfo = &g_app.uniformDataVS.descriptor;
+    writeDescriptorSet.dstBinding = 0;
+
+    vkUpdateDescriptorSets(g_app.device, 1, &writeDescriptorSet, 0, nullptr);
+    
     return true;
 }
 
 bool initPipelines()
 {
+    //TODO: Continue work here
+    
     return true;
 } 
 

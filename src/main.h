@@ -74,11 +74,26 @@ struct VulkanApp
 		VkDeviceMemory memory;
 	} indices;
 
+    struct 
+    {
+		VkBuffer buffer;
+		VkDeviceMemory memory;
+		VkDescriptorBufferInfo descriptor;
+	}  uniformDataVS;
+
    	// The descriptor set layout describes the shader binding points without referencing
 	// the actual buffers. 
 	// Like the pipeline layout it's pretty much a blueprint and can be used with
 	// different descriptor sets as long as the binding points (and shaders) match
 	VkDescriptorSetLayout descriptorSetLayout;
+
+   	// Descriptor set pool
+	VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
+
+   	// The descriptor set stores the resources bound to the binding points in a shader
+	// It connects the binding points of the different shaders with the buffers and images
+	// used for those bindings
+	VkDescriptorSet descriptorSet;
 
    	// The pipeline layout defines the resource binding slots to be used with a pipeline
 	// This includes bindings for buffes (ubos, ssbos), images and sampler
