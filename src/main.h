@@ -101,6 +101,17 @@ struct VulkanApp
 	// their shaders use the same binding layout
 	VkPipelineLayout pipelineLayout;
 
+    VkPipelineCache pipelineCache;
+
+   	// The pipeline (state objects) is a static store for the 3D pipeline states (including shaders)
+	// Other than OpenGL this makes you setup the render states up-front
+	// If different render states are required you need to setup multiple pipelines
+	// and switch between them
+	// Note that there are a few dynamic states (scissor, viewport, line width) that
+	// can be set from a command buffer and does not have to be part of the pipeline
+	// This basic example only uses one pipeline
+	VkPipeline pipeline;
+
     VkRenderPass renderPass;
     std::vector<VkFramebuffer> framebuffers;
 

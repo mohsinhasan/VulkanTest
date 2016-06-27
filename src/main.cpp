@@ -843,10 +843,95 @@ bool initDescriptorSet()
 
 bool initPipelines()
 {
-    //TODO: Continue work here
+    VkGraphicsPipelineCreateInfo gfxPipelineCreateInfo = {};
+    gfxPipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    gfxPipelineCreateInfo.layout = g_app.pipelineLayout;
+    gfxPipelineCreateInfo.renderPass = g_app.renderPass;
+
+    // primitive topology for the pipeline
+    VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = {};
+    inputAssemblyState.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    inputAssemblyState.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+    // rasterization state
+    VkPipelineRasterizationStateCreateInfo rasterizationState = {};
+    rasterizationState.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
+    rasterizationState.cullMode = VK_CULL_MODE_NONE;
+    rasterizationState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    rasterizationState.depthClampEnable = VK_FALSE;
+    rasterizationState.depthBiasEnable = VK_FALSE;
+    rasterizationState.lineWidth = 1.0f;
     
+    std::vector<VkPipelineColorBlendAttachmentState> blendAttachmentState;
+    blendAttachmentState.resize(1);
+    blendAttachmentState[0].colorWriteMask = 0xf;
+    blendAttachmentState[0].blendEnable = VK_FALSE;
+    
+    VkPipelineColorBlendStateCreateInfo colorBlendState = {};
+    colorBlendState.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    colorBlendState.attachmentCount = 1;
+    colorBlendState.pAttachments = blendAttachmentState.data();
+
+    VkPipelineViewportStateCreateInfo viewportState = {};
+    viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewportState.viewportCount = 1;
+    viewportState.scissorCount = 1;
+
+    // enable dynamic states
+    std::vector<VkDynamicState> dynamicStateEnables;
+    dynamicStateEnables.push_back(VK_DYNAMIC_STATE_VIEWPORT);
+    dynamicStateEnables.push_back(VK_DYNAMIC_STATE_SCISSOR);
+    
+    VkPipelineDynamicStateCreateInfo dynamicState = {};
+    dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynamicState.pDynamicStates = dynamicStateEnables.data();
+    dynamicState.dynamicStateCount = dynamicStateEnables.size();
+
+    VkPipelineDepthStencilStateCreateInfo depthStencilState = {};
+
+    depthStencilState.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depthStencilState.depthTestEnable = VK_TRUE;
+    depthStencilState.depthWriteEnable = VK_TRUE;
+    depthStencilState.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+    depthStencilState.depthBoundsTestEnable = VK_FALSE;
+    depthStencilState.back.failOp = VK_STENCIL_OP_KEEP;
+    depthStencilState.back.passOp = VK_STENCIL_OP_KEEP;
+    depthStencilState.stencilTestEnable = VK_FALSE;
+    depthStencilState.front = depthStencilState.back;
+
+    VkPipelineMultisampleStateCreateInfo multisampleState = {};
+    multisampleState.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    multisampleState.pSampleMask =  nullptr;
+    multisampleState.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+    std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
+    shaderStages.resize(2);
+    shaderStages[0] = loadShader(.../vertexShader);
+    shaderStages[1] = loadShader(.../fragmentShader);
+
+    // assign states to pipeline
+    gfxPipelineCreateInfo.stageCount = shaderStages.size();
+    gfxPipelineCreateInfo.pStages = shaderStages.data();
+    gfxPipelineCreateInfo.pVertexInputState = &g_app.vertices.inputState;
+    gfxPipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
+    gfxPipelineCreateInfo.pRasterizationState = &rasterizationState;
+    gfxPipelineCreateInfo.pColorBlendState = &colorBlendState;
+    gfxPipelineCreateInfo.pMultisampleState = &multisampleState;
+    gfxPipelineCreateInfo.pViewportState = &viewportState;
+    gfxPipelineCreateInfo.pDepthStencilState = &depthStencilState;
+    gfxPipelineCreateInfo.renderPass = g_app.renderPass;
+    gfxPipelineCreateInfo.pDynamicState = &dynamicState;
+
+    vkCreateGraphicsPipelines(g_app.device, g_app.pipelineCache, 1, &gfxPipelineCreateInfo, nullptr, &g_app.pipeline);
+
     return true;
 } 
+
+void initUniformBuffers()
+{
+    // TODO: Work here
+}
 
 bool initVulkan()
 {
