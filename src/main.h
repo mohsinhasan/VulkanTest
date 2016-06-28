@@ -117,6 +117,8 @@ struct VulkanApp
 	// This basic example only uses one pipeline
 	VkPipeline pipeline;
 
+    std::vector<VkShaderModule> shaderModules;
+
     VkRenderPass renderPass;
     std::vector<VkFramebuffer> framebuffers;
 

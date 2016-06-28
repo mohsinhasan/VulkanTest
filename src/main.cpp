@@ -13,12 +13,16 @@
 
 #include <cstring>
 
-///
+/// function forward definitions
+void updateUniformBuffers();
+VkPipelineShaderStageCreateInfo loadShader(std::string filename, VkShaderStageFlagBits shaderStage);
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
+VkShaderModule loadShaderGLSL(const char *filename, VkShaderStageFlagBits shaderStage);
 ///
 
+/// Gloabl app instance
 VulkanApp g_app;
-void updateUniformBuffers();
+///
 
 ///
 void executeBeginCommandBuffer(uint16_t iBuffer) 
@@ -907,8 +911,8 @@ bool initPipelines()
 
     std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
     shaderStages.resize(2);
-    //shaderStages[0] = loadShader(.../vertexShader); //TODO: setup shader loading, GLSL for now
-    //shaderStages[1] = loadShader(.../fragmentShader); //TODO: setup shader loading, GLSL for now
+    shaderStages[0] = loadShader("vertexShader.glsl", VK_SHADER_STAGE_VERTEX_BIT); 
+    shaderStages[1] = loadShader("fragmentShader.glsl", VK_SHADER_STAGE_FRAGMENT_BIT);
 
     // assign states to pipeline
     gfxPipelineCreateInfo.stageCount = shaderStages.size();
@@ -978,8 +982,27 @@ void updateUniformBuffers()
     vkUnmapMemory(g_app.device, g_app.uniformDataVS.memory);
 }
 
-    bool initVulkan()
-    {
+VkPipelineShaderStageCreateInfo loadShader(std::string filename, VkShaderStageFlagBits shaderStage)
+{
+    VkPipelineShaderStageCreateInfo shaderStageInfo = {};
+    shaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    shaderStageInfo.stage = shaderStage;
+    shaderStageInfo.pName = "main";
+    shaderStageInfo.module = loadShaderGLSL(filename.c_str(), shaderStage);
+    assert(shaderStageInfo.module != NULL); 
+    g_app.shaderModules.push_back(shaderStageInfo.module);
+
+    return shaderStageInfo;
+}
+
+VkShaderModule loadShaderGLSL(const char *filename, VkShaderStageFlagBits shaderStage)
+{
+    //TODO: Almost there....
+    return 0;
+}
+
+bool initVulkan()
+{
     return  initVKInstance()        &&
             initVKSurface()         &&
             initVKDevice()          &&

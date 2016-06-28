@@ -2,4 +2,5 @@
 {
     "clang.cflags": ["-std=c++11"],
     "clang.cxxflags": ["-std=c++11"]
+    
 }
