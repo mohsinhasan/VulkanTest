@@ -720,7 +720,7 @@ bool initVertexData()
 
     void *data;
 
-    // [TODO] : Should add the staging path since that is the more optimal solution instead of the host visible solution below
+    // [TODO] : Later, Should add the staging path since that is the more optimal solution instead of the host visible solution below
 
     // create host visible memory to put data in
     VkBufferCreateInfo vertexBufferInfo = {};
@@ -907,8 +907,8 @@ bool initPipelines()
 
     std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
     shaderStages.resize(2);
-    shaderStages[0] = loadShader(.../vertexShader);
-    shaderStages[1] = loadShader(.../fragmentShader);
+    //shaderStages[0] = loadShader(.../vertexShader); //TODO: setup shader loading, GLSL for now
+    //shaderStages[1] = loadShader(.../fragmentShader); //TODO: setup shader loading, GLSL for now
 
     // assign states to pipeline
     gfxPipelineCreateInfo.stageCount = shaderStages.size();
@@ -930,7 +930,47 @@ bool initPipelines()
 
 void initUniformBuffers()
 {
+    VkBufferCreateInfo buffCreateInfo = {};
+    buffCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    buffCreateInfo.pNext = nullptr;
+    buffCreateInfo.size = sizeof(g_app.uboVS);
+    buffCreateInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+
+    vkCreateBuffer(g_app.device, &buffCreateInfo, nullptr, &g_app.univformDataVS.data());
+
+
+    VkMemoryRequirements memReqs;
+
+    vkGetBufferMemoryRequirements(g_app.device, g_app.uniformDataVS.buffer, &memReqs);
+
+    VkMemoryAllocateInfo memAllocInfo = {};
+    memAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    memAllocInfo.pNext = nullptr;
+    memAllocInfo.allocationSize = 0;
+    memAllocInfo.memoryTypeIndex = 0;
+    memAllocInfo.allocationSize = memReqs.size;
+    if (uint32_t memoryTypeIndex = memoryTypeFromProperties(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, memAllocInfo.memoryTypeIndex))
+    {
+        memAllocInfo.memoryTypeIndex = memoryTypeIndex;
+    } 
+    as
+    
+    vkAllocateMemory(g_app.device, &memAllocInfo, nullptr, &g_app.uniformDataVS.memory);
+    vkBindBufferMemory(g_app.device, g_app.uniformDataVS.buffer, g_app.uniformDataVS.memory, 0);
+
+    g_app.uniformDataVS.descriptor.buffer = g_app.uniformDataVS.buffer;
+    g_app.uniformDataVS.descriptor.offset = 0;
+    g_app.uniformDataVS.descriptor.range = sizeof(uboVS);
+
+    // update Unifrom Buffers
+    updateUniformBuffers();    
+}
+
+void updateUniformBuffers()
+{
     // TODO: Work here
+
+
 }
 
 bool initVulkan()
