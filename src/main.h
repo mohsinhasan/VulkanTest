@@ -7,12 +7,15 @@
 
 #include <GLFW/glfw3.h>
 
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
 #include <vector>
 #include <memory>
 
 //Screen dimension constants
-const uint SCREEN_WIDTH = 640;
-const uint SCREEN_HEIGHT = 480;
+const uint SCREEN_WIDTH = 1280;
+const uint SCREEN_HEIGHT = 720;
 
 const uint BUFFER_COUNT = 2;
 
@@ -39,7 +42,7 @@ struct VulkanApp
     VkSwapchainKHR swapchain;
     uint32_t swapchainImageCount;
 
-    struct _swapChainBuffer 
+    struct _swapChainBuffer
     {
         VkImage image;
         VkImageView view;
@@ -47,8 +50,7 @@ struct VulkanApp
 
     std::vector<_swapChainBuffer> swapBuffers; 
 
-    struct
-    {
+    struct {
         VkFormat format;
         VkImage image;
         VkDeviceMemory memory;
@@ -58,8 +60,7 @@ struct VulkanApp
     VkFormat colorFormat;
     VkFormat depthFormat;
 
-    struct 
-    {
+    struct {
 		VkBuffer buffer;
 		VkDeviceMemory memory;
 		VkPipelineVertexInputStateCreateInfo inputState;
@@ -67,19 +68,23 @@ struct VulkanApp
 		std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
 	} vertices;
 
-   	struct 
-    {
+   	struct {
 		int count;
 		VkBuffer buffer;
 		VkDeviceMemory memory;
 	} indices;
 
-    struct 
-    {
+    struct {
 		VkBuffer buffer;
 		VkDeviceMemory memory;
 		VkDescriptorBufferInfo descriptor;
 	}  uniformDataVS;
+
+    struct {
+        glm::mat4 projectionMatrix;
+        glm::mat4 modelMatrix;
+        glm::mat4 viewMatrix;
+    } uboVS;
 
    	// The descriptor set layout describes the shader binding points without referencing
 	// the actual buffers. 

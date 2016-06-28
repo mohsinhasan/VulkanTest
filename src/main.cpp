@@ -19,6 +19,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 ///
 
 VulkanApp g_app;
+void updateUniformBuffers();
 
 ///
 void executeBeginCommandBuffer(uint16_t iBuffer) 
@@ -935,12 +936,9 @@ void initUniformBuffers()
     buffCreateInfo.pNext = nullptr;
     buffCreateInfo.size = sizeof(g_app.uboVS);
     buffCreateInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-
-    vkCreateBuffer(g_app.device, &buffCreateInfo, nullptr, &g_app.univformDataVS.data());
-
+    vkCreateBuffer(g_app.device, &buffCreateInfo, nullptr, &g_app.uniformDataVS.buffer);
 
     VkMemoryRequirements memReqs;
-
     vkGetBufferMemoryRequirements(g_app.device, g_app.uniformDataVS.buffer, &memReqs);
 
     VkMemoryAllocateInfo memAllocInfo = {};
@@ -949,18 +947,17 @@ void initUniformBuffers()
     memAllocInfo.allocationSize = 0;
     memAllocInfo.memoryTypeIndex = 0;
     memAllocInfo.allocationSize = memReqs.size;
-    if (uint32_t memoryTypeIndex = memoryTypeFromProperties(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, memAllocInfo.memoryTypeIndex))
+    if (uint32_t memoryTypeIndex = memoryTypeFromProperties(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &memAllocInfo.memoryTypeIndex))
     {
         memAllocInfo.memoryTypeIndex = memoryTypeIndex;
     } 
-    as
-    
     vkAllocateMemory(g_app.device, &memAllocInfo, nullptr, &g_app.uniformDataVS.memory);
+
     vkBindBufferMemory(g_app.device, g_app.uniformDataVS.buffer, g_app.uniformDataVS.memory, 0);
 
     g_app.uniformDataVS.descriptor.buffer = g_app.uniformDataVS.buffer;
     g_app.uniformDataVS.descriptor.offset = 0;
-    g_app.uniformDataVS.descriptor.range = sizeof(uboVS);
+    g_app.uniformDataVS.descriptor.range = sizeof(g_app.uboVS);
 
     // update Unifrom Buffers
     updateUniformBuffers();    
@@ -968,22 +965,31 @@ void initUniformBuffers()
 
 void updateUniformBuffers()
 {
-    // TODO: Work here
+    g_app.uboVS.projectionMatrix = glm::perspective(glm::radians(60.0f), (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT, 0.1f, 256.0f);
 
+    g_app.uboVS.viewMatrix = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, 10.0f));
 
+    g_app.uboVS.modelMatrix = glm::mat4();
+//    g_app.uboVS.modelMatrix = glm::r
+
+    uint8_t *pData;
+
+    vkMapMemory(g_app.device, g_app.uniformDataVS.memory, 0, sizeof(g_app.uboVS), 0, (void **)&pData);
+    memcpy(pData, &g_app.uboVS, sizeof(g_app.uboVS));
+    vkUnmapMemory(g_app.device, g_app.uniformDataVS.memory);
 }
 
-bool initVulkan()
-{
-    return  initVKInstance()    &&
-            initVKSurface()     &&
-            initVKDevice()      &&
-            initVKCommandPool()   &&
-            initVKSwapchain()   &&
-            initVKCommandBuffer() &&            
-            initVKDepthBuffer() &&
-            initVKRenderPass()  &&
-            initVKFrameBuffer() &&
+    bool initVulkan()
+    {
+    return  initVKInstance()        &&
+            initVKSurface()         &&
+            initVKDevice()          &&
+            initVKCommandPool()     &&
+            initVKSwapchain()       &&
+            initVKCommandBuffer()   &&            
+            initVKDepthBuffer()     &&
+            initVKRenderPass()      &&
+            initVKFrameBuffer()     &&
             initSemaphores();
 }
 
