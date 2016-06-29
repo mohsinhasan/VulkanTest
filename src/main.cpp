@@ -6,6 +6,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <fstream>
 
 #include <assert.h>
 #include <limits.h>
@@ -20,8 +21,9 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 VkShaderModule loadShaderGLSL(const char *filename, VkShaderStageFlagBits shaderStage);
 ///
 
-/// Gloabl app instance
+/// Gloabl params
 VulkanApp g_app;
+VkClearColorValue clear_color = {{ 1.0f, 0.8f, 0.4f, 0.0f }};
 ///
 
 ///
@@ -911,8 +913,8 @@ bool initPipelines()
 
     std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
     shaderStages.resize(2);
-    shaderStages[0] = loadShader("vertexShader.glsl", VK_SHADER_STAGE_VERTEX_BIT); 
-    shaderStages[1] = loadShader("fragmentShader.glsl", VK_SHADER_STAGE_FRAGMENT_BIT);
+    shaderStages[0] = loadShader("data/triangle.vert", VK_SHADER_STAGE_VERTEX_BIT); 
+    shaderStages[1] = loadShader("data/triangle.frag", VK_SHADER_STAGE_FRAGMENT_BIT);
 
     // assign states to pipeline
     gfxPipelineCreateInfo.stageCount = shaderStages.size();
@@ -932,7 +934,7 @@ bool initPipelines()
     return true;
 } 
 
-void initUniformBuffers()
+bool initUniformBuffers()
 {
     VkBufferCreateInfo buffCreateInfo = {};
     buffCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -950,9 +952,9 @@ void initUniformBuffers()
     memAllocInfo.allocationSize = 0;
     memAllocInfo.memoryTypeIndex = 0;
     memAllocInfo.allocationSize = memReqs.size;
-    if (uint32_t memoryTypeIndex = memoryTypeFromProperties(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &memAllocInfo.memoryTypeIndex))
+    if (!memoryTypeFromProperties(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &memAllocInfo.memoryTypeIndex))
     {
-        memAllocInfo.memoryTypeIndex = memoryTypeIndex;
+        assert(0);
     } 
     vkAllocateMemory(g_app.device, &memAllocInfo, nullptr, &g_app.uniformDataVS.memory);
 
@@ -964,13 +966,15 @@ void initUniformBuffers()
 
     // update Unifrom Buffers
     updateUniformBuffers();    
+
+    return true;
 }
 
 void updateUniformBuffers()
 {
     g_app.uboVS.projectionMatrix = glm::perspective(glm::radians(60.0f), (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT, 0.1f, 256.0f);
 
-    g_app.uboVS.viewMatrix = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, 10.0f));
+    g_app.uboVS.viewMatrix = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, -2.5f));
 
     g_app.uboVS.modelMatrix = glm::mat4();
 //    g_app.uboVS.modelMatrix = glm::r
@@ -989,16 +993,55 @@ VkPipelineShaderStageCreateInfo loadShader(std::string filename, VkShaderStageFl
     shaderStageInfo.stage = shaderStage;
     shaderStageInfo.pName = "main";
     shaderStageInfo.module = loadShaderGLSL(filename.c_str(), shaderStage);
-    assert(shaderStageInfo.module != NULL); 
+    assert(shaderStageInfo.module != nullptr); 
     g_app.shaderModules.push_back(shaderStageInfo.module);
 
     return shaderStageInfo;
 }
 
+std::string readTextFile(const char *fileName)
+{
+    std::string fileContent;
+    std::ifstream fileStream(fileName, std::ios::in);
+    if (!fileStream.is_open()) {
+        printf("File %s not found\n", fileName);
+        return "";
+    }
+    std::string line = "";
+    while (!fileStream.eof()) {
+        getline(fileStream, line);
+        fileContent.append(line + "\n");
+    }
+    fileStream.close();
+    return fileContent;
+}
+
 VkShaderModule loadShaderGLSL(const char *filename, VkShaderStageFlagBits shaderStage)
 {
-    //TODO: Almost there....
-    return 0;
+    std::string shaderSrc = readTextFile(filename);
+
+    const char* shaderCode = shaderSrc.c_str();
+    size_t codeSize = strlen(shaderCode);
+    assert(codeSize > 0); 
+
+    VkShaderModuleCreateInfo shaderCreateInfo = {};
+
+    shaderCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    shaderCreateInfo.pNext = nullptr;
+    shaderCreateInfo.codeSize = codeSize + 3 * sizeof(uint32_t) + 1; // code size + space for magic SPV number
+    shaderCreateInfo.pCode = (uint32_t*)malloc(shaderCreateInfo.codeSize);
+    shaderCreateInfo.flags = 0;
+
+    // Magic SPV number
+	((uint32_t *)shaderCreateInfo.pCode)[0] = 0x07230203; 
+	((uint32_t *)shaderCreateInfo.pCode)[1] = 0;
+	((uint32_t *)shaderCreateInfo.pCode)[2] = shaderStage;
+    memcpy((uint32_t*)shaderCreateInfo.pCode+3, shaderCode, codeSize + 1);
+
+    VkShaderModule shaderModule;
+    vkCreateShaderModule(g_app.device, &shaderCreateInfo, nullptr, &shaderModule);    
+
+    return shaderModule;
 }
 
 bool initVulkan()
@@ -1012,7 +1055,13 @@ bool initVulkan()
             initVKDepthBuffer()     &&
             initVKRenderPass()      &&
             initVKFrameBuffer()     &&
-            initSemaphores();
+            initSemaphores()        &&
+            initVertexData()        &&
+            initUniformBuffers ()   &&
+            initDescriptorSetLayout() &&
+            initPipelines()         &&
+            initDescriptorPool()    &&
+            initDescriptorSet();     
 }
 
 bool init()
@@ -1029,11 +1078,6 @@ void destroyWindow()
 void clearScreen()
 {
     // clear back buffer
-    VkClearColorValue clear_color = 
-    {
-        { 1.0f, 0.8f, 0.4f, 0.0f }
-    };
-
     VkImageSubresourceRange image_subresource_range; 
     image_subresource_range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;                   
     image_subresource_range.baseMipLevel = 0;                                         
@@ -1080,9 +1124,83 @@ void clearScreen()
     }
 }
 
-void createCommandBuffers()
+void buildCommandBuffers()
 {
+    //TODO: Continue here
+    VkCommandBufferBeginInfo cmdBufferInfo = {};
+    cmdBufferInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    cmdBufferInfo.pNext = nullptr;
 
+    VkClearValue clearValues[2];
+    clearValues[0].color = clear_color; 
+    clearValues[1].depthStencil = {1.0f, 0};
+
+    VkRenderPassBeginInfo renderPassBeginInfo = {};
+    renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    renderPassBeginInfo.pNext = nullptr;
+    renderPassBeginInfo.renderPass = g_app.renderPass;
+    renderPassBeginInfo.renderArea.offset.x = 0; 
+    renderPassBeginInfo.renderArea.offset.y = 0;
+    renderPassBeginInfo.renderArea.extent.width = SCREEN_WIDTH;
+    renderPassBeginInfo.renderArea.extent.height = SCREEN_HEIGHT;
+    renderPassBeginInfo.clearValueCount = 2;
+    renderPassBeginInfo.pClearValues = clearValues;
+
+    for (uint32_t i = 0; i < g_app.drawCmdBuffers.size(); ++i)
+    {
+        renderPassBeginInfo.framebuffer = g_app.framebuffers[i];
+
+        vkBeginCommandBuffer(g_app.drawCmdBuffers[i], &cmdBufferInfo);
+        vkCmdBeginRenderPass(g_app.drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+        VkViewport viewport = {};
+        viewport.width = (float)SCREEN_WIDTH;
+        viewport.height = (float)SCREEN_HEIGHT;
+        viewport.minDepth = (float) 0.0f;
+        viewport.maxDepth = (float) 1.0f;
+        vkCmdSetViewport(g_app.drawCmdBuffers[i], 0, 1, &viewport);
+
+        VkRect2D scissor = {};
+        scissor.extent.width = SCREEN_WIDTH;
+        scissor.extent.height = SCREEN_HEIGHT;
+        scissor.offset.x = 0;
+        scissor.offset.y = 0;
+        vkCmdSetScissor(g_app.drawCmdBuffers[i], 0, 1, &scissor);
+
+        vkCmdBindDescriptorSets(g_app.drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, g_app.pipelineLayout, 0, 1, &g_app.descriptorSet, 0 , nullptr);
+        vkCmdBindPipeline(g_app.drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, g_app.pipeline);
+
+        VkDeviceSize offsets[1] = {0};
+        vkCmdBindVertexBuffers(g_app.drawCmdBuffers[i], 0, 1, &g_app.vertices.buffer, offsets);
+        vkCmdBindIndexBuffer(g_app.drawCmdBuffers[i], g_app.indices.buffer, 0, VK_INDEX_TYPE_UINT32);
+
+        vkCmdDrawIndexed(g_app.drawCmdBuffers[i], g_app.indices.count, 1, 0, 0, 1);
+
+        vkCmdEndRenderPass(g_app.drawCmdBuffers[i]);
+
+        VkImageMemoryBarrier prePresentBarrier = {};
+        prePresentBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        prePresentBarrier.pNext = nullptr;
+        prePresentBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        prePresentBarrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+        prePresentBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        prePresentBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        prePresentBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        prePresentBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        prePresentBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+        prePresentBarrier.image = g_app.swapBuffers[i].image;
+
+        vkCmdPipelineBarrier(
+            g_app.drawCmdBuffers[i], 
+            VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 
+            VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 
+            0, 
+            0, nullptr,
+            0, nullptr,
+            1, &prePresentBarrier);
+
+        vkEndCommandBuffer(g_app.drawCmdBuffers[i]);
+    }
 }
 
 void render()
@@ -1097,7 +1215,7 @@ void render()
     result = vkAcquireNextImageKHR( g_app.device, g_app.swapchain, UINT64_MAX, g_app.ImageAvailableSemaphore, VK_NULL_HANDLE, &image_index );
     assert (result == VK_SUCCESS);
 
-   /* // Add a post present image memory barrier
+    // Add a post present image memory barrier
     // This will transform the frame buffer color attachment back
     // to it's initial layout after it has been presented to the
     // windowing system
@@ -1140,7 +1258,7 @@ void render()
     submitInfo.pCommandBuffers = &g_app.postPresentCmdBuffer;
 
     result = vkQueueSubmit(g_app.queue, 1, &submitInfo, VK_NULL_HANDLE);
-    assert (result == VK_SUCCESS);*/
+    assert (result == VK_SUCCESS);
 
     // Make sure that the image barrier command submitted to the queue 
     // has finished executing
@@ -1198,7 +1316,8 @@ int main(int argc, char **argv)
     init(); // init Vulkan subsystems
     printf("Vulkan init success!!!\n");
 
-    clearScreen(); // record command buffer
+    //clearScreen(); // record command buffer
+    buildCommandBuffers();// record command buffer
 
     do 
     {
