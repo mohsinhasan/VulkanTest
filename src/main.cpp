@@ -24,6 +24,7 @@ VkShaderModule loadShaderGLSL(const char *filename, VkShaderStageFlagBits shader
 /// Gloabl params
 VulkanApp g_app;
 VkClearColorValue clear_color = {{ 1.0f, 0.8f, 0.4f, 0.0f }};
+const uint32_t VERTEX_BUFFER_BIND_ID = 0;
 ///
 
 ///
@@ -580,9 +581,9 @@ bool initVKRenderPass()
     colorAttachmentReference.attachment = 0;
     colorAttachmentReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-    VkAttachmentReference depthAttachmentReference;
+    /*VkAttachmentReference depthAttachmentReference; TODO: Disabling depoth
     depthAttachmentReference.attachment = 1;
-    depthAttachmentReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    depthAttachmentReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;*/ 
 
     VkSubpassDescription subpassDescription;
     subpassDescription.flags = 0;
@@ -592,7 +593,7 @@ bool initVKRenderPass()
     subpassDescription.colorAttachmentCount = 1;
     subpassDescription.pColorAttachments = &colorAttachmentReference;
     subpassDescription.pResolveAttachments = nullptr;
-    subpassDescription.pDepthStencilAttachment = &depthAttachmentReference;
+    subpassDescription.pDepthStencilAttachment = nullptr;//&depthAttachmentReference; TODO: Look here for depth
     subpassDescription.preserveAttachmentCount = 0;
     subpassDescription.pPreserveAttachments = nullptr;
 
@@ -601,7 +602,7 @@ bool initVKRenderPass()
     info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     info.pNext = nullptr;
     info.flags = 0;
-    info.attachmentCount = 2;
+    info.attachmentCount = 1;//2; TODO : Look at here
     info.pAttachments = attachmentDescription;
     info.subpassCount = 1;
     info.pSubpasses = &subpassDescription;
@@ -718,6 +719,7 @@ bool initVertexData()
     std::vector<uint32_t> triangleIndices = {0, 1, 2};
 
     uint32_t indexBufferSize = triangleIndices.size() * sizeof (uint32_t);
+    g_app.indices.count = static_cast<uint32_t>(triangleIndices.size());
 
     VkMemoryAllocateInfo mem_alloc = {};
     mem_alloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -766,6 +768,30 @@ bool initVertexData()
     memcpy(data, triangleIndices.data(), indexBufferSize);
     vkUnmapMemory(g_app.device, g_app.indices.memory);
     vkBindBufferMemory(g_app.device, g_app.indices.buffer, g_app.indices.memory, 0);
+
+    g_app.vertices.bindingDescriptions.resize(1);
+    g_app.vertices.bindingDescriptions[0].binding = VERTEX_BUFFER_BIND_ID;
+    g_app.vertices.bindingDescriptions[0].stride = sizeof(vertex);
+    g_app.vertices.bindingDescriptions[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+    g_app.vertices.attributeDescriptions.resize(2);
+    g_app.vertices.attributeDescriptions[0].binding = VERTEX_BUFFER_BIND_ID;
+    g_app.vertices.attributeDescriptions[0].location = 0;
+    g_app.vertices.attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+    g_app.vertices.attributeDescriptions[0].offset = 0;
+
+    g_app.vertices.attributeDescriptions[1].binding = VERTEX_BUFFER_BIND_ID;
+    g_app.vertices.attributeDescriptions[1].location = 1;
+    g_app.vertices.attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+    g_app.vertices.attributeDescriptions[1].offset = sizeof(float) * 3;
+    
+    g_app.vertices.inputState.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    g_app.vertices.inputState.pNext = nullptr;
+    g_app.vertices.inputState.flags = 0;
+    g_app.vertices.inputState.vertexBindingDescriptionCount = static_cast<uint32_t>(g_app.vertices.bindingDescriptions.size());
+    g_app.vertices.inputState.pVertexBindingDescriptions = g_app.vertices.bindingDescriptions.data();
+    g_app.vertices.inputState.vertexAttributeDescriptionCount = static_cast<uint32_t>(g_app.vertices.attributeDescriptions.size());
+    g_app.vertices.inputState.pVertexAttributeDescriptions = g_app.vertices.attributeDescriptions.data(); 
 
     return true;
 }
