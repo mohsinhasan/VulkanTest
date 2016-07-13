@@ -58,7 +58,6 @@ struct VulkanApp
     } depth;
     
     VkFormat colorFormat;
-    VkFormat depthFormat;
 
     struct {
 		VkBuffer buffer;

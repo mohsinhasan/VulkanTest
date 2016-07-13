@@ -55,48 +55,15 @@ void executeEndCommandBuffer(uint16_t iBuffer)
 
 void executeQueueCommandBuffer(uint16_t iBuffer) 
 {
-    VkResult result;
+    VkSubmitInfo submitInfo = {};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &g_app.drawCmdBuffers[iBuffer];
 
-    /* Queue the command buffer for execution */
-    VkFenceCreateInfo fenceInfo;
-    VkFence drawFence;
-    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    fenceInfo.pNext = NULL;
-    fenceInfo.flags = 0;
-    vkCreateFence(g_app.device, &fenceInfo, NULL, &drawFence);
-
-    VkPipelineStageFlags pipe_stage_flags = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
-    VkSubmitInfo submit_info[1] = {};
-    submit_info[0].pNext = NULL;
-    submit_info[0].sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submit_info[0].waitSemaphoreCount = 0;
-    submit_info[0].pWaitSemaphores = NULL;
-    submit_info[0].pWaitDstStageMask = &pipe_stage_flags;
-    submit_info[0].commandBufferCount = 1;
-    submit_info[0].pCommandBuffers = &g_app.drawCmdBuffers[iBuffer];
-    submit_info[0].signalSemaphoreCount = 0;
-    submit_info[0].pSignalSemaphores = NULL;
-
-    result = vkQueueSubmit(g_app.queue, 1, submit_info, drawFence);
-    assert(result == VK_SUCCESS);
-
-    do 
-    {
-        result = vkWaitForFences(g_app.device, 1, &drawFence, VK_TRUE, FENCE_TIMEOUT);
-    } while (result == VK_TIMEOUT);
-
-    assert(result == VK_SUCCESS);
-
-    vkDestroyFence(g_app.device, drawFence, NULL);
+	vkQueueSubmit(g_app.queue, 1, &submitInfo, 0);
+	vkQueueWaitIdle(g_app.queue);
 }
 ///
-
-
-void fatalError(char *message)
-{
-  fprintf(stderr, "main: %s\n", message);
-  exit(1);
-}
 
 void redraw(void)
 {
@@ -479,6 +446,8 @@ bool initVKDepthBuffer()
         printf("VK_FORMAT_D16_UNORM Unsupported.\n");
         return false;
     }
+    
+    g_app.depth.format = depth_format;
 
     image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     image_info.pNext = NULL;
@@ -490,11 +459,9 @@ bool initVKDepthBuffer()
     image_info.mipLevels = 1;
     image_info.arrayLayers = 1;
     image_info.samples = VK_SAMPLE_COUNT_1_BIT;
-    image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    image_info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+    image_info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
     image_info.queueFamilyIndexCount = 0;
-    image_info.pQueueFamilyIndices = NULL;
-    image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     image_info.flags = 0;
 
     VkMemoryAllocateInfo mem_alloc = {};
@@ -502,25 +469,6 @@ bool initVKDepthBuffer()
     mem_alloc.pNext = NULL;
     mem_alloc.allocationSize = 0;
     mem_alloc.memoryTypeIndex = 0;
-
-    VkImageViewCreateInfo view_info = {};
-    view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    view_info.pNext = NULL;
-    view_info.image = VK_NULL_HANDLE;
-    view_info.format = depth_format;
-    view_info.components.r = VK_COMPONENT_SWIZZLE_R;
-    view_info.components.g = VK_COMPONENT_SWIZZLE_G;
-    view_info.components.b = VK_COMPONENT_SWIZZLE_B;
-    view_info.components.a = VK_COMPONENT_SWIZZLE_A;
-    view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-    view_info.subresourceRange.baseMipLevel = 0;
-    view_info.subresourceRange.levelCount = 1;
-    view_info.subresourceRange.baseArrayLayer = 0;
-    view_info.subresourceRange.layerCount = 1;
-    view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    view_info.flags = 0;
-
-    g_app.depth.format = depth_format;
 
     /* Create image */
     VkResult result = vkCreateImage(g_app.device, &image_info, NULL, &g_app.depth.image);
@@ -531,7 +479,7 @@ bool initVKDepthBuffer()
 
     mem_alloc.allocationSize = memReqs.size;
     /* Use the memory properties to determine the type of memory required */
-    bool pass = memoryTypeFromProperties(memReqs.memoryTypeBits, 0 /* No Requirements */, &mem_alloc.memoryTypeIndex); 
+    bool pass = memoryTypeFromProperties(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT /* No Requirements */, &mem_alloc.memoryTypeIndex); 
     assert(pass);
 
     /* Allocate memory */
@@ -542,10 +490,51 @@ bool initVKDepthBuffer()
     result = vkBindImageMemory(g_app.device, g_app.depth.image, g_app.depth.memory, 0);
     assert(result == VK_SUCCESS);
 
-    /* Set the image layout to depth stencil optimal */
-    setImageLayout(0, g_app.depth.image, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+    executeBeginCommandBuffer(0);
 
+    /* Set the image layout to depth stencil optimal */
+    setImageLayout(0, g_app.depth.image, VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+
+    VkImageMemoryBarrier imageMemoryBarrier = {};
+    imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    imageMemoryBarrier.srcAccessMask = 0;
+    imageMemoryBarrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    // Transform layout from undefined (initial) to depth/stencil attachment (usage)
+    imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    imageMemoryBarrier.subresourceRange = { VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, 0, 1, 0, 1 };
+    imageMemoryBarrier.image = g_app.depth.image;
+
+    vkCmdPipelineBarrier(
+			g_app.drawCmdBuffers[0],
+			VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+			VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+			0,
+			0, nullptr,
+			0, nullptr,
+			1, &imageMemoryBarrier);
+
+
+    executeEndCommandBuffer(0);
+        
+    executeQueueCommandBuffer(0);    
+            
     /* Create image view */
+    VkImageViewCreateInfo view_info = {};
+    view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    view_info.pNext = NULL;
+    view_info.image = VK_NULL_HANDLE;
+    view_info.format = depth_format;
+    view_info.subresourceRange = {};
+    view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+    view_info.subresourceRange.baseMipLevel = 0;
+    view_info.subresourceRange.levelCount = 1;
+    view_info.subresourceRange.baseArrayLayer = 0;
+    view_info.subresourceRange.layerCount = 1;
+    view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    view_info.flags = 0;
     view_info.image = g_app.depth.image;
     result = vkCreateImageView(g_app.device, &view_info, NULL, &g_app.depth.view);
     assert(result == VK_SUCCESS);
@@ -557,7 +546,7 @@ bool initVKRenderPass()
 {
     VkAttachmentDescription attachmentDescription[2];
     attachmentDescription[0].format = g_app.colorFormat;
-    //attachmentDescription[0].flags = VK_ATTACHMENT_DESCRIPTION_MAY_ALIAS_BIT;
+    attachmentDescription[0].flags = VK_ATTACHMENT_DESCRIPTION_MAY_ALIAS_BIT;
     attachmentDescription[0].samples = VK_SAMPLE_COUNT_1_BIT;
     attachmentDescription[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     attachmentDescription[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -566,8 +555,8 @@ bool initVKRenderPass()
     attachmentDescription[0].initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     attachmentDescription[0].finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-    attachmentDescription[1].format = g_app.depthFormat;
-    //attachmentDescription[1].flags = VK_ATTACHMENT_DESCRIPTION_MAY_ALIAS_BIT;
+    attachmentDescription[1].format = g_app.depth.format;
+    attachmentDescription[1].flags = VK_ATTACHMENT_DESCRIPTION_MAY_ALIAS_BIT;
     attachmentDescription[1].samples = VK_SAMPLE_COUNT_1_BIT;
     attachmentDescription[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     attachmentDescription[1].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -581,9 +570,9 @@ bool initVKRenderPass()
     colorAttachmentReference.attachment = 0;
     colorAttachmentReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-    /*VkAttachmentReference depthAttachmentReference; TODO: Disabling depoth
+    VkAttachmentReference depthAttachmentReference;
     depthAttachmentReference.attachment = 1;
-    depthAttachmentReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;*/ 
+    depthAttachmentReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL; 
 
     VkSubpassDescription subpassDescription;
     subpassDescription.flags = 0;
@@ -593,7 +582,7 @@ bool initVKRenderPass()
     subpassDescription.colorAttachmentCount = 1;
     subpassDescription.pColorAttachments = &colorAttachmentReference;
     subpassDescription.pResolveAttachments = nullptr;
-    subpassDescription.pDepthStencilAttachment = nullptr;//&depthAttachmentReference; TODO: Look here for depth
+    subpassDescription.pDepthStencilAttachment = &depthAttachmentReference;
     subpassDescription.preserveAttachmentCount = 0;
     subpassDescription.pPreserveAttachments = nullptr;
 
@@ -602,7 +591,7 @@ bool initVKRenderPass()
     info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     info.pNext = nullptr;
     info.flags = 0;
-    info.attachmentCount = 1;//2; TODO : Look at here
+    info.attachmentCount = 2;
     info.pAttachments = attachmentDescription;
     info.subpassCount = 1;
     info.pSubpasses = &subpassDescription;
@@ -892,6 +881,7 @@ bool initPipelines()
     rasterizationState.cullMode = VK_CULL_MODE_NONE;
     rasterizationState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     rasterizationState.depthClampEnable = VK_FALSE;
+    rasterizationState.rasterizerDiscardEnable = VK_FALSE;
     rasterizationState.depthBiasEnable = VK_FALSE;
     rasterizationState.lineWidth = 1.0f;
     
@@ -1101,58 +1091,8 @@ void destroyWindow()
     vkDestroySwapchainKHR(g_app.device, g_app.swapchain, nullptr);
 }
 
-void clearScreen()
-{
-    // clear back buffer
-    VkImageSubresourceRange image_subresource_range; 
-    image_subresource_range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;                   
-    image_subresource_range.baseMipLevel = 0;                                         
-    image_subresource_range.levelCount = 1;                                           
-    image_subresource_range.baseArrayLayer = 0;                                       
-    image_subresource_range.layerCount = 1;                                                  
-    
-    for (uint32_t i = 0; i < g_app.swapchainImageCount; ++i) 
-    {
-        VkImageMemoryBarrier barrier_from_present_to_clear = {}; 
-        barrier_from_present_to_clear.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        barrier_from_present_to_clear.pNext = nullptr;
-        barrier_from_present_to_clear.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-        barrier_from_present_to_clear.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        barrier_from_present_to_clear.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        barrier_from_present_to_clear.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        barrier_from_present_to_clear.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier_from_present_to_clear.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier_from_present_to_clear.image = g_app.swapBuffers[i].image;
-        barrier_from_present_to_clear.subresourceRange = image_subresource_range;
-
-        VkImageMemoryBarrier barrier_from_clear_to_present = {}; 
-        barrier_from_clear_to_present.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;// VkStructureType                        
-        barrier_from_clear_to_present.pNext = nullptr;                               // const void                            
-        barrier_from_clear_to_present.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;          // VkAccessFlags                          
-        barrier_from_clear_to_present.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;             // VkAccessFlags                          
-        barrier_from_clear_to_present.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;  // VkImageLayout                          
-        barrier_from_clear_to_present.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;       // VkImageLayout                          
-        barrier_from_clear_to_present.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;               // uint32_t                               
-        barrier_from_clear_to_present.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;               // uint32_t                               
-        barrier_from_clear_to_present.image = g_app.swapBuffers[i].image;            // VkImage                                
-        barrier_from_clear_to_present.subresourceRange = image_subresource_range;                     // VkImageSubresourceRange                
-
-        executeBeginCommandBuffer(i);
-        //setImageLayout(i, g_app.swapBuffers[i].image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-
-        vkCmdPipelineBarrier( g_app.drawCmdBuffers[i], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier_from_present_to_clear );
-        vkCmdClearColorImage( g_app.drawCmdBuffers[i], g_app.swapBuffers[i].image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clear_color, 1, &image_subresource_range );
-        vkCmdPipelineBarrier( g_app.drawCmdBuffers[i], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier_from_clear_to_present );
-
-        executeEndCommandBuffer(i);
-        
-        executeQueueCommandBuffer(i); //[MH][TODO] : Removing this causes flickering. Why do we need this for correct image display?
-    }
-}
-
 void buildCommandBuffers()
 {
-    //TODO: Continue here
     VkCommandBufferBeginInfo cmdBufferInfo = {};
     cmdBufferInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     cmdBufferInfo.pNext = nullptr;
@@ -1342,7 +1282,6 @@ int main(int argc, char **argv)
     init(); // init Vulkan subsystems
     printf("Vulkan init success!!!\n");
 
-    //clearScreen(); // record command buffer
     buildCommandBuffers();// record command buffer
 
     do 
