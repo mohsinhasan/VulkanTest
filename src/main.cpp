@@ -990,10 +990,14 @@ void updateUniformBuffers()
 {
     g_app.uboVS.projectionMatrix = glm::perspective(glm::radians(60.0f), (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT, 0.1f, 256.0f);
 
-    g_app.uboVS.viewMatrix = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, -2.5f));
+    g_app.uboVS.viewMatrix = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, -3.5f));
 
     g_app.uboVS.modelMatrix = glm::mat4();
-//    g_app.uboVS.modelMatrix = glm::r
+
+    static float rotAngle = 0.0f;
+    g_app.uboVS.modelMatrix = glm::rotate(g_app.uboVS.modelMatrix, rotAngle, glm::vec3(0.f, 1.f, 0.f));
+
+    rotAngle += 0.0001f;
 
     uint8_t *pData;
 
@@ -1171,6 +1175,8 @@ void buildCommandBuffers()
 
 void render()
 {
+    updateUniformBuffers();
+
     VkResult result = VK_SUCCESS;
     
     result = vkQueueWaitIdle(g_app.queue);
@@ -1279,10 +1285,14 @@ void mainloop()
 int main(int argc, char **argv)
 {
     printf("Entering Vulkan Test program");
-    init(); // init Vulkan subsystems
+    
+     // init Vulkan subsystems
+    init();
+
     printf("Vulkan init success!!!\n");
 
-    buildCommandBuffers();// record command buffer
+    // record command buffer
+    buildCommandBuffers();
 
     do 
     {
@@ -1291,7 +1301,7 @@ int main(int argc, char **argv)
     while(!g_app.shouldExit);
 
     // Flush device to make sure all resources can be freed 
-	vkDeviceWaitIdle(g_app.device);
+    vkDeviceWaitIdle(g_app.device);
         
     destroyWindow();
 
